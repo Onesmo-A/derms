@@ -199,7 +199,7 @@ export default function RegionsPage() {
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F4C81] border-t-transparent" />
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="derms-table-wrap rounded-none border-0 shadow-none">
                         <table className="min-w-full divide-y divide-gray-100 text-sm">
                             <thead className="bg-gray-50">
                                 <tr>

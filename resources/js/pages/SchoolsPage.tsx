@@ -327,7 +327,7 @@ export default function SchoolsPage() {
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F4C81] border-t-transparent" />
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <div className="derms-table-wrap rounded-none border-0 shadow-none">
                                 <table className="min-w-full divide-y divide-gray-100 text-sm">
                                     <thead className="bg-gray-50">
                                         <tr>
@@ -514,6 +514,7 @@ export default function SchoolsPage() {
                         ⚠ School performance rankings will populate here once examination results have been processed and published. Go to <strong>Results Management → Process Results</strong> to generate rankings.
                     </div>
                     <div className="overflow-hidden rounded-xl border">
+                        <div className="overflow-x-auto w-full">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -530,6 +531,7 @@ export default function SchoolsPage() {
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             )}

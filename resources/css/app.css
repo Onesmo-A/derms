@@ -133,11 +133,42 @@
 }
 
 @layer base {
+
+    html,
+    body,
+    #app {
+        height: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+    }
+
     * {
         @apply border-border;
     }
 
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+@layer utilities {
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        /* IE and Edge */
+        scrollbar-width: none;
+        /* Firefox */
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+        /* Chrome, Safari and Opera */
+    }
+
+    .derms-table-wrap {
+        @apply w-full overflow-x-auto rounded-xl border border-border shadow-sm;
+    }
+
+    .derms-page {
+        @apply w-full px-4 sm:px-6 md:px-8 py-6 max-w-7xl mx-auto;
     }
 }

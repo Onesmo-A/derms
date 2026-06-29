@@ -78,6 +78,7 @@ export default function AdminDashboard() {
                                 <h3 className="text-lg font-bold text-gray-900">User Accounts</h3>
                                 <button className="rounded-lg bg-[#0F4C81] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0c3c66]">Add User</button>
                             </div>
+                            <div className="overflow-x-auto w-full">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
@@ -102,6 +103,7 @@ export default function AdminDashboard() {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
 

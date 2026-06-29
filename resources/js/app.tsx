@@ -12,19 +12,21 @@ import AppRoutes from '@/routes';
 
 initializeTheme();
 
-const container = document.getElementById('app');
-if (container) {
-    const root = createRoot(container);
-    root.render(
-        <React.StrictMode>
-            <Provider store={store}>
-                <TooltipProvider delayDuration={0}>
-                    <BrowserRouter>
-                        <AppRoutes />
-                        <Toaster />
-                    </BrowserRouter>
-                </TooltipProvider>
-            </Provider>
-        </React.StrictMode>
-    );
+if (typeof document !== 'undefined') {
+    const container = document.getElementById('app');
+    if (container) {
+        const root = createRoot(container);
+        root.render(
+            <React.StrictMode>
+                <Provider store={store}>
+                    <TooltipProvider delayDuration={0}>
+                        <BrowserRouter>
+                            <AppRoutes />
+                            <Toaster />
+                        </BrowserRouter>
+                    </TooltipProvider>
+                </Provider>
+            </React.StrictMode>
+        );
+    }
 }

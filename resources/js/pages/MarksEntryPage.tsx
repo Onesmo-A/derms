@@ -563,6 +563,7 @@ export default function MarksEntryPage() {
                             ⚠ Marks must be verified and locked before results can be processed.
                         </div>
                         <div className="overflow-hidden rounded-xl border">
+                            <div className="overflow-x-auto w-full">
                             <table className="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -579,6 +580,7 @@ export default function MarksEntryPage() {
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 )}

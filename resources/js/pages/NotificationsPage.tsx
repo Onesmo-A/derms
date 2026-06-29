@@ -105,6 +105,7 @@ export default function NotificationsPage() {
                                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0F4C81] border-t-transparent"></div>
                             </div>
                         ) : (
+                            <div className="overflow-x-auto w-full">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
@@ -131,6 +132,7 @@ export default function NotificationsPage() {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         )}
                     </div>
                 )}

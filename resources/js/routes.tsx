@@ -36,8 +36,18 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     Dot,
+    Menu,
+    X,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AcademicSetupPage from '@/pages/AcademicSetupPage';
 import SystemSettingsPage from '@/pages/SystemSettingsPage';
@@ -355,6 +365,18 @@ const LoginPage = () => {
 
 const Shell = ({ children }: { children: React.ReactNode }) => {
     const [collapsed, setCollapsed] = React.useState(false);
+    const [mobileOpen, setMobileOpen] = React.useState(false);
+
+    React.useEffect(() => {
+        if (typeof document !== 'undefined') {
+            document.body.classList.add('overflow-hidden');
+            document.documentElement.classList.add('overflow-hidden');
+            return () => {
+                document.body.classList.remove('overflow-hidden');
+                document.documentElement.classList.remove('overflow-hidden');
+            };
+        }
+    }, []);
 
     const renderItems = (items: MenuItem[], depth = 0) =>
         items.map((item) => {
@@ -388,6 +410,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                 <NavLink
                     key={item.title}
                     to={item.href}
+                    onClick={() => setMobileOpen(false)}
                     className={({ isActive }) =>
                         [
                             'group relative flex items-center gap-3 rounded-2xl px-3 py-2 text-sm transition duration-200 before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full before:content-[""]',
@@ -417,8 +440,20 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <div className="flex min-h-screen bg-slate-50 text-slate-900">
-            <aside className={`sticky top-0 h-screen shrink-0 border-r border-slate-200 bg-white px-4 py-5 transition-all duration-300 ease-in-out ${collapsed ? 'w-[92px]' : 'w-[320px]'}`}>
+        <div className="flex h-full bg-slate-50 text-slate-900 overflow-hidden">
+            {/* Mobile Sidebar Overlay Backdrop */}
+            {mobileOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/40 lg:hidden transition-opacity"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside
+                className={`fixed inset-y-0 left-0 z-50 shrink-0 border-r border-slate-200 bg-white px-4 py-5 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+                    } ${collapsed ? 'w-[92px]' : 'w-[280px] sm:w-[320px]'}`}
+            >
                 <div className="mb-4 flex items-center justify-between px-1">
                     {!collapsed ? (
                         <div>
@@ -428,22 +463,34 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                     ) : (
                         <div className="text-xl font-black tracking-tight text-[#0F4C81]">D</div>
                     )}
+
+                    {/* Desktop Toggle */}
                     <button
                         type="button"
                         onClick={() => setCollapsed((value) => !value)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                        className="hidden lg:inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                     >
                         {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
                     </button>
+
+                    {/* Mobile Close */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileOpen(false)}
+                        className="inline-flex lg:hidden h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                        aria-label="Close sidebar"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
                 </div>
 
-                <div className={`max-h-[calc(100vh-190px)] space-y-2 overflow-y-auto pr-1 ${collapsed ? 'mt-4' : ''}`}>
+                <div className={`max-h-[calc(100dvh-190px)] space-y-2 overflow-y-auto pr-1 scrollbar-hide ${collapsed ? 'mt-4' : ''}`}>
                     {renderItems(menu)}
                 </div>
 
                 {collapsed && (
-                    <div className="mt-4 flex justify-center">
+                    <div className="mt-4 flex justify-center hidden lg:flex">
                         <div className="rounded-full bg-[#0F4C81] px-2.5 py-1 text-[10px] font-semibold text-white">v1.0</div>
                     </div>
                 )}
@@ -460,7 +507,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                 {collapsed && (
                     <button
                         onClick={handleLogout}
-                        className="mt-5 flex w-full items-center justify-center rounded-2xl bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                        className="mt-5 hidden lg:flex w-full items-center justify-center rounded-2xl bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                         aria-label="Sign out"
                     >
                         <span className="sr-only">Sign Out</span>
@@ -468,30 +515,80 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                     </button>
                 )}
             </aside>
-            <main className="min-h-screen flex-1 p-6">
-                {children}
-            </main>
+
+            {/* Main Content */}
+            <div className="flex flex-1 flex-col min-w-0 min-h-0">
+                {/* Mobile Header Topbar */}
+                <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setMobileOpen(true)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                            <Menu className="h-5 w-5" />
+                        </button>
+                        <div className="text-lg font-black tracking-tight text-[#0F4C81]">DERMS</div>
+                    </div>
+                    <div className="flex items-center">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F4C81] text-xs font-bold text-white hover:bg-[#0c3c66] transition outline-none">
+                                    A
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56 rounded-xl p-1">
+                                <DropdownMenuLabel className="px-2 py-2">
+                                    <div className="flex flex-col space-y-1">
+                                        <p className="text-sm font-semibold text-slate-900 leading-none">Admin User</p>
+                                        <p className="text-xs text-slate-500">admin@derms.go.tz</p>
+                                    </div>
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
+                                    <NavLink to="/settings/general" className="flex items-center w-full">
+                                        <Settings2 className="mr-2 h-4 w-4" />
+                                        <span>System Settings</span>
+                                    </NavLink>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleLogout} className="rounded-lg cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700">
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    <span>Sign Out</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </header>
+
+                <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 pb-10 w-full max-w-full">
+                    {children}
+                </main>
+            </div>
         </div>
     );
 };
 
 const DashboardPage = () => (
     <Shell>
-        <div className="max-w-7xl">
-            <div className="mb-8">
-                <h1 className="text-3xl font-black tracking-tight text-slate-900">Dashboard</h1>
-                <p className="mt-2 text-slate-600">Welcome to District Examination & Results Management System.</p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="max-w-7xl mx-auto">
+            <h1 className="text-3xl font-black tracking-tight text-[#0F4C81]">District Dashboard</h1>
+            <p className="mt-1 text-sm text-slate-500">Welcome back! Here's a summary of your district's performance.</p>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
-                    ['Schools', '128'],
-                    ['Registered Candidates', '45,820'],
-                    ['Active Exams', '2'],
-                    ['Performance GPA', '2.84'],
-                ].map(([label, value]) => (
-                    <div key={label} className="rounded-3xl bg-white p-6 shadow-sm">
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</div>
-                        <div className="mt-3 text-4xl font-black text-slate-900">{value}</div>
+                    { label: 'Total Schools', value: '142', icon: School, color: 'from-[#0F4C81] to-[#1a6ab1]' },
+                    { label: 'Registered Students', value: '45,231', icon: Users2, color: 'from-emerald-500 to-emerald-600' },
+                    { label: 'Active Examinations', value: '3', icon: FileSpreadsheet, color: 'from-blue-500 to-blue-600' },
+                    { label: 'Pending Transfers', value: '84', icon: CalendarDays, color: 'from-amber-500 to-amber-600' },
+                ].map((stat) => (
+                    <div key={stat.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${stat.color} p-5 text-white shadow-md`}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{stat.label}</p>
+                                <p className="mt-1 text-3xl font-black">{stat.value}</p>
+                            </div>
+                            <stat.icon className="h-10 w-10 opacity-20" />
+                        </div>
                     </div>
                 ))}
             </div>
@@ -511,7 +608,7 @@ const AppRoutes = () => (
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            
+
             {/* Administration / Identity Console */}
             <Route path="/users" element={<PageShell><AdminDashboard /></PageShell>} />
             <Route path="/roles" element={<PageShell><AdminDashboard /></PageShell>} />
@@ -640,6 +737,5 @@ const AppRoutes = () => (
     </Routes>
 );
 
-export const dashboard = () => '/dashboard';
 
 export default AppRoutes;

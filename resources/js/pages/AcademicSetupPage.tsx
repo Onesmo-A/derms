@@ -176,6 +176,7 @@ export default function AcademicSetupPage() {
                                     New Year
                                 </button>
                             </div>
+                            <div className="overflow-x-auto w-full">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
@@ -204,6 +205,7 @@ export default function AcademicSetupPage() {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
 
@@ -243,6 +245,7 @@ export default function AcademicSetupPage() {
                                     Add Subject
                                 </button>
                             </div>
+                            <div className="overflow-x-auto w-full">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
@@ -264,6 +267,7 @@ export default function AcademicSetupPage() {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
 
