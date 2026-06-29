@@ -1,0 +1,32 @@
+# DERMS Task Checklist
+
+- [x] **Phase 1: Core Setup**
+    - [x] Initialize Domain Modules folder structure (`app/Domains/` for all domains)
+    - [x] Create base migrations (Academic Years, Class Levels, Regions, Districts, Schools, Users)
+    - [x] Register domain-specific custom routing providers
+    - [x] Initialize Redux toolkit and Tailwind CSS v4 in the frontend React SPA
+- [x] **Phase 2: Core Admin (Identity, School, Student)**
+    - [x] Implement Identity Domain (Laravel Sanctum, Spatie Permission, Policies)
+    - [x] Implement School Domain (CRUD for regions, districts, schools)
+    - [x] Implement Student Domain (Academic years, Class levels, Students CRUD, bulk imports)
+- [x] **Phase 3: Exams Setup**
+    - [x] Create migrations and models for Examinations, Subjects, Regs, and Grading
+    - [x] Implement Grading Scheme Configurator
+    - [x] Implement Candidate Registration flow (generating candidate numbers)
+- [x] **Phase 4: Marks Entry & spreadsheet UI**
+    - [x] Build spreadsheet marks entry grid with React
+    - [x] Build Excel template exporter and importer
+    - [x] Build server-side validation & absent/disqualified student handlers
+- [x] **Phase 5: Results Processing Engine & Rankings**
+    - [x] Build ResultsProcessingService (best-7 subjects, division, GPA, averages)
+    - [x] Implement RankCalculator (student, school, district positions)
+    - [x] Set up Redis queue worker jobs for processing
+- [ ] **Phase 6: Reporting & SMS**
+    - [ ] Implement PDF result sheet / candidate slip reports
+    - [ ] Implement Excel reports
+    - [ ] Implement modular SMS Dispatcher for parent alerts
+- [ ] **Phase 7: AI Insights & Docker Setup**
+    - [ ] Build AI Agent services (Performance, Risk, Rec, Executive)
+    - [ ] Add AI insight dashboards to React SPA
+    - [ ] Write production Dockerfile and compose configurations
+    - [ ] Setup GitHub Actions pipelines
