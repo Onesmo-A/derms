@@ -1,52 +1,62 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-use App\Http\Controllers\Controller;
 
+use App\Http\Controllers\Controller;
 use App\Domains\School\Models\AcademicYear;
-use App\Http\Requests\Api\School\AcademicYearStoreRequest;
-use App\Http\Requests\Api\School\AcademicYearUpdateRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 
 class AcademicYearController extends Controller
 {
     public function index(): JsonResponse
     {
-        $this->authorize('viewAny', AcademicYear::class);
-        $years = AcademicYear::all();
-        return response()->json($years);
+        return response()->json(AcademicYear::orderBy('start_date', 'desc')->get());
     }
 
-    public function store(AcademicYearStoreRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        $this->authorize('create', AcademicYear::class);
-        $year = AcademicYear::create($request->validated());
+        $data = $request->validate([
+            'name'       => 'required|string|max:4',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after:start_date',
+            'is_active'  => 'boolean',
+        ]);
+
+        if (!empty($data['is_active'])) {
+            AcademicYear::where('is_active', true)->update(['is_active' => false]);
+        }
+
+        $year = AcademicYear::create($data);
         return response()->json($year, 201);
     }
 
     public function show($id): JsonResponse
     {
-        $year = AcademicYear::findOrFail($id);
-        $this->authorize('view', $year);
-        return response()->json($year);
+        return response()->json(AcademicYear::findOrFail($id));
     }
 
-    public function update(AcademicYearUpdateRequest $request, $id): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
         $year = AcademicYear::findOrFail($id);
-        $this->authorize('update', $year);
-        $year->update($request->validated());
+        $data = $request->validate([
+            'name'       => 'sometimes|string|max:100',
+            'start_date' => 'sometimes|date',
+            'end_date'   => 'sometimes|date',
+            'is_active'  => 'boolean',
+        ]);
+
+        if (!empty($data['is_active'])) {
+            AcademicYear::where('id', '!=', $id)->where('is_active', true)->update(['is_active' => false]);
+        }
+
+        $year->update($data);
         return response()->json($year);
     }
 
     public function destroy($id): JsonResponse
     {
-        $year = AcademicYear::findOrFail($id);
-        $this->authorize('delete', $year);
-        $year->delete();
+        AcademicYear::findOrFail($id)->delete();
         return response()->json(null, 204);
     }
 }
-?>

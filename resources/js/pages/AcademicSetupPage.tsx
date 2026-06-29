@@ -25,7 +25,7 @@ export default function AcademicSetupPage() {
     const [classForm, setClassForm] = useState({ name: '', numeric_level: '' });
     const [subjectForm, setSubjectForm] = useState({ name: '', code: '', has_practical: false, class_level_id: '' });
     const [gradingForm, setGradingForm] = useState({ label: '', min_percent: '', max_percent: '', points: '' });
-    const [ruleForm, setRuleForm] = useState({ name: '', range: '', badge: '' });
+    const [ruleForm, setRuleForm] = useState({ name: '', min_points: '', max_points: '', badge: '' });
 
     // ── Auth headers ───────────────────────────────────────────────────────────
     const token = localStorage.getItem('token');
@@ -100,7 +100,7 @@ export default function AcademicSetupPage() {
             const res = await fetch('/api/v1/division-rules', { method: 'POST', headers, body: JSON.stringify(ruleForm) });
             if (!res.ok) throw new Error('Failed');
             setShowRuleModal(false);
-            setRuleForm({ name: '', range: '', badge: '' });
+            setRuleForm({ name: '', min_points: '', max_points: '', badge: '' });
             fetchData();
         } catch (e) { console.error(e); }
     };
@@ -316,7 +316,7 @@ export default function AcademicSetupPage() {
                                     <div key={r.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
                                         <div>
                                             <span className="font-semibold text-gray-900">{r.name}</span>
-                                            <span className="ml-2 text-sm text-gray-500">{r.range}</span>
+                                            <span className="ml-2 text-sm text-gray-500">{r.min_points} – {r.max_points} pts</span>
                                         </div>
                                         <button
                                             className="text-sm text-red-500 hover:text-red-700"
@@ -342,7 +342,7 @@ export default function AcademicSetupPage() {
                     <div className={MODAL_BOX}>
                         <h2 className="text-xl font-bold mb-4 text-gray-900">New Academic Year</h2>
                         <div className="space-y-3">
-                            <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Year Name" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} />
+                            <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Year (e.g. 2026)" maxLength={4} value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} />
                             <label className="block text-xs text-gray-500">Start Date</label>
                             <input type="date" className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" value={yearForm.start_date} onChange={e => setYearForm({ ...yearForm, start_date: e.target.value })} />
                             <label className="block text-xs text-gray-500">End Date</label>
@@ -432,7 +432,10 @@ export default function AcademicSetupPage() {
                         <h2 className="text-xl font-bold mb-4 text-gray-900">Add Division Rule</h2>
                         <div className="space-y-3">
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Division Name (e.g. Division I)" value={ruleForm.name} onChange={e => setRuleForm({ ...ruleForm, name: e.target.value })} />
-                            <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Point Range (e.g. 7 - 17)" value={ruleForm.range} onChange={e => setRuleForm({ ...ruleForm, range: e.target.value })} />
+                            <div className="grid grid-cols-2 gap-2">
+                                <input type="number" className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Min Points" value={ruleForm.min_points} onChange={e => setRuleForm({ ...ruleForm, min_points: e.target.value })} />
+                                <input type="number" className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Max Points" value={ruleForm.max_points} onChange={e => setRuleForm({ ...ruleForm, max_points: e.target.value })} />
+                            </div>
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Badge style (optional)" value={ruleForm.badge} onChange={e => setRuleForm({ ...ruleForm, badge: e.target.value })} />
                         </div>
                         <div className="mt-5 flex justify-end gap-2">

@@ -4,6 +4,7 @@ namespace App\Domains\School\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class GradingSystemDetail extends Model
 {
@@ -13,6 +14,12 @@ class GradingSystemDetail extends Model
 
     public $incrementing = false;
     protected $keyType = 'string';
+
+    protected static function boot(): void
+    {
+        parent::boot();
+        static::creating(fn ($m) => $m->id = $m->id ?: (string) Str::uuid());
+    }
 
     protected $fillable = [
         'grading_system_id',

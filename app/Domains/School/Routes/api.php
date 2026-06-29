@@ -36,4 +36,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('subjects/template', [\App\Http\Controllers\Api\SubjectController::class, 'template']);
     Route::post('class-levels/import', [\App\Http\Controllers\Api\ClassLevelController::class, 'import']);
     Route::get('class-levels/template', [\App\Http\Controllers\Api\ClassLevelController::class, 'template']);
+
+    // ── Grading Systems ──────────────────────────────────────────────────────────
+    Route::get('grading-systems', [\App\Http\Controllers\Api\GradingSystemController::class, 'index']);
+    Route::post('grading-systems', [\App\Http\Controllers\Api\GradingSystemController::class, 'store']);
+    Route::delete('grading-systems/{id}', [\App\Http\Controllers\Api\GradingSystemController::class, 'destroy']);
+
+    // ── Division Rules ───────────────────────────────────────────────────────────
+    Route::apiResource('division-rules', \App\Http\Controllers\Api\DivisionRuleController::class);
 });

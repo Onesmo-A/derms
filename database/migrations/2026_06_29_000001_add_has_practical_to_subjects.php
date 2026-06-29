@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('subjects', function (Blueprint $table) {
-            $table->boolean('has_practical')->default(false)->after('is_active');
-        });
+        if (!Schema::hasColumn('subjects', 'has_practical')) {
+            Schema::table('subjects', function (Blueprint $table) {
+                $table->boolean('has_practical')->default(false);
+            });
+        }
     }
 
     /**

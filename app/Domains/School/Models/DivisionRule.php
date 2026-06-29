@@ -7,37 +7,30 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-class Subject extends Model
+class DivisionRule extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'subjects';
+    protected $table = 'division_rules';
 
     public $incrementing = false;
     protected $keyType = 'string';
 
     protected $fillable = [
         'name',
-        'code',
-        'description',
-        'class_level_id',
-        'is_active',
-        'has_practical',
+        'min_points',
+        'max_points',
+        'badge',
     ];
 
     protected $casts = [
-        'is_active'     => 'boolean',
-        'has_practical' => 'boolean',
+        'min_points' => 'integer',
+        'max_points' => 'integer',
     ];
 
     protected static function boot(): void
     {
         parent::boot();
         static::creating(fn ($m) => $m->id = $m->id ?: (string) Str::uuid());
-    }
-
-    public function classLevel()
-    {
-        return $this->belongsTo(ClassLevel::class);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Domains\School\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class GradingSystem extends Model
 {
@@ -20,6 +21,12 @@ class GradingSystem extends Model
         'class_level_id',
         'type',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+        static::creating(fn ($m) => $m->id = $m->id ?: (string) Str::uuid());
+    }
 
     public function details()
     {
