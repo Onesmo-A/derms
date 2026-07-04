@@ -86,7 +86,7 @@ class DemoExamCycleSeeder extends Seeder
         foreach ($students as $student) {
             $schoolCounters[$student->school_id] = ($schoolCounters[$student->school_id] ?? 0) + 1;
             $candidateIndex = $schoolCounters[$student->school_id];
-            $examNumber = $student->school->registration_number . '/' . str_pad((string) $candidateIndex, 4, '0', STR_PAD_LEFT) . '/2026';
+            $examNumber = $student->school->registration_number . '/' . str_pad((string) $candidateIndex, 4, '0', STR_PAD_LEFT);
 
             $registration = ExaminationRegistration::firstOrCreate(
                 [

@@ -754,19 +754,29 @@ class StudentController extends Controller
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Apply data access scope based on the authenticated user's role.
+     * Apply data access scope based on the authenticated user's role and organizational scope.
      */
     protected function applyAccessScope($query, $user): void
     {
-        if ($user->hasRole('District Officer') && $user->district_id) {
-            $query->whereHas('school', fn ($q) =>
-                $q->where('district_id', $user->district_id)
-            );
+        if ($user->hasRole('Super Administrator')) {
+            return; // Unrestricted
+        }
+
+        if ($user->hasRole('Regional Education Officer (REO)') && $user->region_id) {
+            $query->whereHas('school.district', fn ($q) => $q->where('region_id', $user->region_id));
             return;
         }
 
-        if ($user->hasAnyRole(['School Administrator', 'Teacher']) && $user->school_id) {
-            $query->where('school_id', $user->school_id);
+        if ($user->hasAnyRole(['District Education Officer (DEO)', 'District Academic Officer']) && $user->district_id) {
+            $query->whereHas('school', fn ($q) => $q->where('district_id', $user->district_id));
+            return;
         }
+
+        if ($user->hasAnyRole(['Head of School', 'Academic Master/Mistress', 'Subject Teacher']) && $user->school_id) {
+            $query->where('school_id', $user->school_id);
+            return;
+        }
+
+        $query->whereRaw('1 = 0'); // Deny by default
     }
 }

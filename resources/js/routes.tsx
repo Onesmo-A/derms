@@ -38,6 +38,8 @@ import {
     Dot,
     Menu,
     X,
+    Eye,
+    EyeOff,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import {
@@ -72,221 +74,41 @@ type MenuItem = {
 
 const menu: MenuItem[] = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    {
-        title: 'Administration',
-        icon: ShieldCheck,
-        children: [
-            {
-                title: 'User Management',
-                icon: Users2,
-                children: [
-                    { title: 'Users', href: '/users', icon: UserRound },
-                    { title: 'Roles', href: '/roles', icon: BadgeCheck },
-                    { title: 'Permissions', href: '/permissions', icon: ShieldCheck },
-                    { title: 'User Activity Logs', href: '/audit/user-activities', icon: Activity },
-                ],
-            },
-            {
-                title: 'Organization Management',
-                icon: Building2,
-                children: [
-                    { title: 'Regions', href: '/regions', icon: House },
-                    { title: 'Districts', href: '/districts', icon: Layers3 },
-                    { title: 'Schools', href: '/schools', icon: School },
-                ],
-            },
-            {
-                title: 'Academic Setup',
-                icon: GraduationCap,
-                children: [
-                    { title: 'Academic Years', href: '/academic-years', icon: CalendarDays },
-                    { title: 'Class Levels', href: '/class-levels', icon: Table2 },
-                    { title: 'Subjects', href: '/subjects', icon: BookOpen },
-                    { title: 'Subject Groups', href: '/subject-groups', icon: FolderCheck },
-                    { title: 'Grading Systems', href: '/grading-systems', icon: ClipboardList },
-                    { title: 'Division Rules', href: '/division-rules', icon: DatabaseZap },
-                ],
-            },
-            {
-                title: 'System Settings',
-                icon: Settings2,
-                children: [
-                    { title: 'General Settings', href: '/settings/general', icon: Settings2 },
-                    { title: 'SMS Settings', href: '/settings/sms', icon: MessagesSquare },
-                    { title: 'AI Settings', href: '/settings/ai', icon: BrainCircuit },
-                    { title: 'Report Templates', href: '/settings/report-templates', icon: FileBarChart2 },
-                    { title: 'Backup & Restore', href: '/settings/backup', icon: FileDown },
-                    { title: 'Audit Logs', href: '/audit-logs', icon: ShieldCheck },
-                ],
-            },
-        ],
-    },
-    {
-        title: 'Schools Management',
-        icon: School,
-        children: [
-            { title: 'Schools', href: '/schools', icon: School },
-            { title: 'School Categories', href: '/school-categories', icon: ChevronDown },
-            { title: 'School Statistics', href: '/school-statistics', icon: BarChart3 },
-            { title: 'School Performance History', href: '/school-performance-history', icon: ChartColumn },
-        ],
-    },
-    {
-        title: 'Students Management',
-        icon: Users2,
-        children: [
-            { title: 'All Students', href: '/students', icon: Users2 },
-            { title: 'Register Students', href: '/students/register', icon: UserCog },
-            { title: 'Bulk Import Students', href: '/students/import', icon: FileSpreadsheet },
-            { title: 'Candidate Registration', href: '/candidates/register', icon: BadgeCheck },
-            { title: 'Student Promotions', href: '/students/promotions', icon: ChevronDown },
-            { title: 'Student Transfers', href: '/students/transfers', icon: ChevronDown },
-            { title: 'Duplicate Detection', href: '/students/duplicates', icon: Radar },
-            { title: 'Student Performance History', href: '/students/performance-history', icon: ChartColumn },
-        ],
-    },
-    {
-        title: 'Examinations Management',
-        icon: ClipboardList,
-        children: [
-            { title: 'Examination Types', href: '/examination-types', icon: FolderCheck },
-            { title: 'All Examinations', href: '/examinations', icon: ClipboardList },
-            { title: 'Create Examination', href: '/examinations/create', icon: BadgeCheck },
-            { title: 'Examination Calendar', href: '/examinations/calendar', icon: CalendarDays },
-            { title: 'Examination Timetable', href: '/examinations/timetable', icon: FileSpreadsheet },
-            { title: 'Assign Subjects', href: '/examinations/subjects/assign', icon: BookOpen },
-            { title: 'Subject Configuration', href: '/examinations/subjects/configuration', icon: Settings2 },
-            { title: 'Subject Papers Setup', href: '/examinations/subjects/papers', icon: Layers3 },
-            { title: 'Register Candidates', href: '/candidates/register', icon: BadgeCheck },
-            { title: 'Registered Candidates', href: '/candidates/registered', icon: Users2 },
-            { title: 'Import Candidates', href: '/candidates/import', icon: FileSpreadsheet },
-            { title: 'Candidate Verification', href: '/candidates/verification', icon: ShieldCheck },
-            { title: 'Centers List', href: '/examination-centers', icon: Building2 },
-            { title: 'Center Statistics', href: '/examination-centers/statistics', icon: BarChart3 },
-        ],
-    },
-    {
-        title: 'Marks Management',
-        icon: Table2,
-        children: [
-            { title: 'Manual Marks Entry', href: '/marks/manual-entry', icon: ClipboardList },
-            { title: 'Spreadsheet Entry', href: '/marks/spreadsheet', icon: FileSpreadsheet },
-            { title: 'Import Marks', href: '/marks/import', icon: FileDown },
-            { title: 'Bulk Update Marks', href: '/marks/bulk-update', icon: DatabaseZap },
-            { title: 'Marks Verification', href: '/marks/verification', icon: ShieldCheck },
-            { title: 'Practical Entry', href: '/marks/practical-entry', icon: ClipboardList },
-            { title: 'Practical Approval', href: '/marks/practical-approval', icon: BadgeCheck },
-            { title: 'Practical Summary', href: '/marks/practical-summary', icon: BarChart3 },
-            { title: 'Review Marks', href: '/marks/review', icon: ShieldCheck },
-            { title: 'Adjust Marks', href: '/marks/adjust', icon: DatabaseZap },
-            { title: 'Moderation Logs', href: '/marks/moderation-logs', icon: Activity },
-        ],
-    },
-    {
-        title: 'Results Management',
-        icon: FileBarChart2,
-        children: [
-            { title: 'Process Results', href: '/results/process', icon: DatabaseZap },
-            { title: 'Reprocess Results', href: '/results/reprocess', icon: DatabaseZap },
-            { title: 'Processing History', href: '/results/processing-history', icon: Activity },
-            { title: 'Publish Results', href: '/results/publish', icon: Stars },
-            { title: 'Unpublish Results', href: '/results/unpublish', icon: VenetianMask },
-            { title: 'Publication History', href: '/results/publication-history', icon: Activity },
-            { title: 'SMS Result Notifications', href: '/notifications/sms', icon: MessagesSquare },
-        ],
-    },
-    {
-        title: 'Reports',
-        icon: FileBarChart2,
-        children: [
-            { title: 'Student Reports', href: '/reports/students', icon: Users2 },
-            { title: 'School Reports', href: '/reports/schools', icon: School },
-            { title: 'Subject Reports', href: '/reports/subjects', icon: BookOpen },
-            { title: 'District Reports', href: '/reports/district', icon: Building2 },
-            { title: 'Export Center', href: '/reports/export-center', icon: FileDown },
-        ],
-    },
-    {
-        title: 'Analytics',
-        icon: BarChart3,
-        children: [
-            { title: 'School Analysis', href: '/analytics/schools', icon: School },
-            { title: 'Subject Analysis', href: '/analytics/subjects', icon: BookOpen },
-            { title: 'Student Analysis', href: '/analytics/students', icon: Users2 },
-            { title: 'Gender Analysis', href: '/analytics/gender', icon: Users2 },
-            { title: 'Performance Trends', href: '/analytics/performance-trends', icon: ChartColumn },
-            { title: 'Rankings Analysis', href: '/analytics/rankings', icon: Radar },
-            { title: 'Comparative Analysis', href: '/analytics/comparative', icon: BarChart3 },
-            { title: 'Trend Predictions', href: '/analytics/predictions', icon: Stars },
-        ],
-    },
-    {
-        title: 'AI Intelligence',
-        icon: BrainCircuit,
-        children: [
-            { title: 'Ask AI', href: '/ai/ask', icon: BrainCircuit },
-            { title: 'AI Chat History', href: '/ai/history', icon: MessagesSquare },
-            { title: 'Saved Analyses', href: '/ai/saved-analyses', icon: FileBarChart2 },
-            { title: 'Performance Analysis', href: '/ai/performance-analysis', icon: BarChart3 },
-            { title: 'Risk Detection', href: '/ai/risk-detection', icon: ShieldCheck },
-            { title: 'Recommendations', href: '/ai/recommendations', icon: ClipboardList },
-            { title: 'Executive Summaries', href: '/ai/executive-summaries', icon: FileBarChart2 },
-            { title: 'Trend Analysis', href: '/ai/trend-analysis', icon: ChartColumn },
-            { title: 'Weak Subjects', href: '/ai/weak-subjects', icon: BookOpen },
-            { title: 'Best Schools', href: '/ai/best-schools', icon: School },
-            { title: 'At Risk Students', href: '/ai/at-risk-students', icon: Users2 },
-            { title: 'Improvement Suggestions', href: '/ai/improvements', icon: ClipboardList },
-        ],
-    },
-    {
-        title: 'Notifications',
-        icon: BellRing,
-        children: [
-            { title: 'SMS Notifications', href: '/notifications/sms', icon: MessagesSquare },
-            { title: 'Email Notifications', href: '/notifications/email', icon: BellRing },
-            { title: 'Notification Templates', href: '/notifications/templates', icon: FileBarChart2 },
-            { title: 'Delivery Logs', href: '/notifications/delivery-logs', icon: Activity },
-        ],
-    },
-    {
-        title: 'Audit & Monitoring',
-        icon: ShieldCheck,
-        children: [
-            { title: 'Audit Logs', href: '/audit-logs', icon: ShieldCheck },
-            { title: 'User Activities', href: '/audit/user-activities', icon: Activity },
-            { title: 'Login History', href: '/audit/login-history', icon: Users2 },
-            { title: 'System Events', href: '/audit/system-events', icon: Radar },
-            { title: 'Error Logs', href: '/audit/error-logs', icon: FileBarChart2 },
-        ],
-    },
-    {
-        title: 'Support & Help',
-        icon: BookOpen,
-        children: [
-            { title: 'User Guide', href: '/help/user-guide', icon: BookOpen },
-            { title: 'System Documentation', href: '/help/documentation', icon: FileBarChart2 },
-            { title: 'FAQs', href: '/help/faqs', icon: ClipboardList },
-            { title: 'Contact Support', href: '/help/support', icon: MessagesSquare },
-            { title: 'About System', href: '/help/about', icon: DatabaseZap },
-        ],
-    },
+    { title: 'Administration', href: '/users', icon: ShieldCheck },
+    { title: 'Academic Setup', href: '/academic-years', icon: GraduationCap },
+    { title: 'Regions', href: '/regions', icon: House },
+    { title: 'Districts', href: '/districts', icon: Layers3 },
+    { title: 'Schools Management', href: '/schools', icon: School },
+    { title: 'Students Management', href: '/students', icon: Users2 },
+    { title: 'Examinations', href: '/examinations', icon: ClipboardList },
+    { title: 'Marks Entry & Moderation', href: '/marks/manual-entry', icon: Table2 },
+    { title: 'Results Management', href: '/results/process', icon: FileBarChart2 },
+    { title: 'Reports & Analytics', href: '/reports/students', icon: FileBarChart2 },
+    { title: 'AI Intelligence', href: '/ai', icon: BrainCircuit },
+    { title: 'Notifications', href: '/notifications/sms', icon: BellRing },
+    { title: 'System Settings', href: '/settings/general', icon: Settings2 },
+    { title: 'Support & Help', href: '/help/user-guide', icon: BookOpen },
 ];
 
+
 const WelcomePage = () => (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-sky-50 p-6 text-center text-slate-900">
-        <div className="max-w-2xl">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-gradient-to-br from-slate-50 via-white to-sky-50 p-6 text-center text-slate-900">
+        <div className="flex-1 flex flex-col items-center justify-center max-w-2xl">
             <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                District Examination & Results Management System
+                Iramba District Examination Management System
             </div>
-            <h1 className="text-5xl font-black tracking-tight sm:text-6xl">DERMS</h1>
+            <h1 className="text-5xl font-black tracking-tight sm:text-6xl text-[#0F4C81]">IDEMS</h1>
             <p className="mt-4 text-lg text-slate-600">
                 A district-wide platform for examinations, results, reports, analytics, and operations.
             </p>
+            <a href="/dashboard" className="mt-10 rounded-full bg-[#0F4C81] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0c3c66]">
+                Open Dashboard
+            </a>
         </div>
-        <a href="/dashboard" className="mt-10 rounded-full bg-[#0F4C81] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0c3c66]">
-            Open Dashboard
-        </a>
+        <footer className="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
+            Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
+        </footer>
     </div>
 );
 
@@ -295,6 +117,7 @@ const LoginPage = () => {
     const [password, setPassword] = React.useState('password');
     const [error, setError] = React.useState('');
     const [loading, setLoading] = React.useState(false);
+    const [showPassword, setShowPassword] = React.useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -324,41 +147,59 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-            <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-slate-900 shadow-xl">
-                <h2 className="text-center text-3xl font-black">DERMS Sign In</h2>
-                <p className="mt-2 text-center text-sm text-slate-600">Access the district administration console</p>
-                {error && <div className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-                <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Email Address</label>
-                        <input
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            type="email"
-                            required
-                            className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none ring-0 focus:border-[#0F4C81]"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Password</label>
-                        <input
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            type="password"
-                            required
-                            className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none ring-0 focus:border-[#0F4C81]"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-[#0F4C81] py-2.5 text-sm font-semibold text-white transition hover:bg-[#0c3c66] disabled:opacity-50"
-                    >
-                        {loading ? 'Signing in...' : 'Sign In'}
-                    </button>
-                </form>
+        <div className="flex min-h-screen flex-col items-center justify-between bg-slate-50 p-4">
+            <div className="flex-1 flex items-center justify-center w-full">
+                <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-slate-900 shadow-xl">
+                    <h2 className="text-center text-3xl font-black">DERMS Sign In</h2>
+                    <p className="mt-2 text-center text-sm text-slate-600">Access the district administration console</p>
+                    {error && <div className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+                    <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Email Address</label>
+                            <input
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                type="email"
+                                required
+                                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none ring-0 focus:border-[#0F4C81]"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Password</label>
+                            <div className="relative mt-1">
+                                <input
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    className="block w-full rounded-xl border border-slate-300 bg-white pl-3 pr-10 py-2 text-slate-900 outline-none ring-0 focus:border-[#0F4C81]"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                        <Eye className="h-5 w-5" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full rounded-xl bg-[#0F4C81] py-2.5 text-sm font-semibold text-white transition hover:bg-[#0c3c66] disabled:opacity-50"
+                        >
+                            {loading ? 'Signing in...' : 'Sign In'}
+                        </button>
+                    </form>
+                </div>
             </div>
+            <footer className="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
+                Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
+            </footer>
         </div>
     );
 };
@@ -457,7 +298,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                 <div className="mb-4 flex items-center justify-between px-1">
                     {!collapsed ? (
                         <div>
-                            <div className="text-2xl font-black tracking-tight text-[#0F4C81]">DERMS</div>
+                            <div className="text-2xl font-black tracking-tight text-[#0F4C81]">IREMS</div>
                             <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">District Console</div>
                         </div>
                     ) : (
@@ -560,8 +401,13 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                     </div>
                 </header>
 
-                <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 pb-10 w-full max-w-full">
-                    {children}
+                <main className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 pb-4 w-full max-w-full">
+                    <div className="flex-grow">
+                        {children}
+                    </div>
+                    <footer className="w-full border-t border-slate-100 mt-8 pt-4 pb-2 text-center text-xs text-slate-500">
+                        Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
+                    </footer>
                 </main>
             </div>
         </div>

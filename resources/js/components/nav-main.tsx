@@ -102,7 +102,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
 
     return (
         <SidebarGroup className="px-2 py-0">
-            <SidebarGroupLabel>DERMS Navigation</SidebarGroupLabel>
+            <SidebarGroupLabel>IDEMS Navigation</SidebarGroupLabel>
             <SidebarMenu>
                 {renderItems(items)}
             </SidebarMenu>

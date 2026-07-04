@@ -366,7 +366,7 @@ class ExaminationController extends Controller
                         ->count() + 1;
 
                     $paddedIndex = str_pad($candidateIndex, 4, '0', STR_PAD_LEFT);
-                    $examNumber = "{$school->registration_number}/{$paddedIndex}/{$academicYearName}";
+                    $examNumber = "{$school->registration_number}/{$paddedIndex}";
 
                     ExaminationRegistration::create([
                         'id' => (string) Str::uuid(),
@@ -511,4 +511,118 @@ class ExaminationController extends Controller
             'message' => 'Results processing queued successfully. Ranks and summaries will compile in the background.'
         ]);
     }
+
+    /**
+     * Delete an examination.
+     */
+    public function destroy(string $id, AuditLogger $auditLogger)
+    {
+        $exam = Examination::findOrFail($id);
+        $this->authorize('delete', $exam);
+
+        $old = $exam->toArray();
+        $exam->delete();
+
+        $auditLogger->log(
+            action: 'examination.deleted',
+            description: 'Examination deleted: ' . $exam->name,
+            user: auth()->user(),
+            oldValues: $old
+        );
+
+        return response()->json([
+            'message' => 'Examination deleted successfully.'
+        ]);
+    }
+
+    /**
+     * Fetch timetable settings for an examination.
+     */
+    public function getTimetable(string $id)
+    {
+        $exam = Examination::findOrFail($id);
+        $this->authorize('view', $exam);
+
+        $timetable = ExaminationSubject::with(['subject', 'classLevel'])
+            ->where('examination_id', $id)
+            ->get();
+
+        return response()->json($timetable);
+    }
+
+    /**
+     * Update timetable schedules for an examination.
+     */
+    public function updateTimetable(Request $request, string $id, AuditLogger $auditLogger)
+    {
+        $exam = Examination::findOrFail($id);
+        $this->authorize('update', $exam);
+
+        $request->validate([
+            'schedules' => 'required|array',
+            'schedules.*.examination_subject_id' => 'required|uuid',
+            'schedules.*.exam_date' => 'nullable|date',
+            'schedules.*.start_time' => 'nullable|string|max:10',
+            'schedules.*.end_time' => 'nullable|string|max:10',
+        ]);
+
+        DB::transaction(function() use ($request) {
+            foreach ($request->schedules as $sched) {
+                ExaminationSubject::where('id', $sched['examination_subject_id'])
+                    ->update([
+                        'exam_date' => $sched['exam_date'],
+                        'start_time' => $sched['start_time'],
+                        'end_time' => $sched['end_time'],
+                    ]);
+            }
+        });
+
+        $auditLogger->log(
+            action: 'examination.timetable.updated',
+            description: 'Timetable updated for exam: ' . $exam->name,
+            user: $request->user(),
+            newValues: ['examination_id' => $id]
+        );
+
+        return response()->json([
+            'message' => 'Timetable updated successfully.'
+        ]);
+    }
+
+    /**
+     * Fetch registered candidates for an examination.
+     */
+    public function getCandidates(Request $request, string $id)
+    {
+        $exam = Examination::findOrFail($id);
+        $this->authorize('view', $exam);
+
+        $query = ExaminationRegistration::with(['student.school'])
+            ->where('examination_id', $id);
+
+        if ($request->filled('school_id')) {
+            $query->whereHas('student', function($q) use ($request) {
+                $q->where('school_id', $request->school_id);
+            });
+        }
+
+        if ($request->filled('class_level_id')) {
+            $query->where('class_level_id', $request->class_level_id);
+        }
+
+        $candidates = $query->get()->map(function($reg) {
+            return [
+                'id' => $reg->id,
+                'examination_registration_id' => $reg->id,
+                'student_id' => $reg->student_id,
+                'exam_number' => $reg->exam_number,
+                'first_name' => $reg->student->first_name,
+                'last_name' => $reg->student->last_name,
+                'school_name' => $reg->student->school->name ?? 'Unknown',
+            ];
+        });
+
+        return response()->json($candidates);
+    }
 }
+

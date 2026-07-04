@@ -32,11 +32,18 @@ class User extends Authenticatable
     protected $fillable = [
         'school_id',
         'district_id',
-        'name',
+        'region_id',
+        'first_name',
+        'middle_name',
+        'last_name',
         'email',
-        'phone_number',
+        'phone',
         'password',
         'status',
+        'failed_login_attempts',
+        'last_login_at',
+        'force_password_change',
+        'created_by',
     ];
 
     /**
@@ -50,6 +57,23 @@ class User extends Authenticatable
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = ['name'];
+
+    /**
+     * Get the user's full name.
+     */
+    public function getNameAttribute(): string
+    {
+        return collect([$this->first_name, $this->middle_name, $this->last_name])
+            ->filter()
+            ->implode(' ');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -59,6 +83,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime',
+            'force_password_change' => 'boolean',
         ];
     }
 
@@ -77,4 +103,21 @@ class User extends Authenticatable
     {
         return $this->belongsTo(District::class, 'district_id');
     }
+
+    /**
+     * Get the region that the user belongs to.
+     */
+    public function region(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domains\School\Models\Region::class, 'region_id');
+    }
+
+    /**
+     * Get the user that created this user.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }
+

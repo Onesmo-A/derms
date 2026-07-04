@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Loader2, Search, Sliders, CheckCircle, AlertTriangle, FileSpreadsheet, Edit3, ShieldAlert } from 'lucide-react';
 
-// Types aligned with backend MarksService.buildGrid() response
 interface SubjectConfig {
     examination_subject_id: string;
     max_marks: number;
@@ -15,7 +15,7 @@ interface CandidateRow {
     examination_registration_id: string;
     student_name: string;
     exam_number: string;
-    registration_status: string;   // 'registered' | 'absent' | 'disqualified'
+    registration_status: string;
     paper_one_score: number | null;
     paper_two_score: number | null;
     final_score: number | null;
@@ -38,19 +38,20 @@ export default function MarksEntryPage() {
     // ─── Dropdown state ───────────────────────────────────────────────────────
     const [exams, setExams] = useState<any[]>([]);
     const [schools, setSchools] = useState<any[]>([]);
-    // All curriculum subjects (for fallback display)
+    const [regions, setRegions] = useState<any[]>([]);
+    const [districts, setDistricts] = useState<any[]>([]);
     const [subjects, setSubjects] = useState<any[]>([]);
-    // Subjects configured for the selected exam (exam_subjects with subject_id)
     const [examSubjects, setExamSubjects] = useState<any[]>([]);
-    // Class levels configured for the selected exam
     const [classLevels, setClassLevels] = useState<any[]>([]);
-    const [loadingExamMeta, setLoadingExamMeta] = useState(false);
 
-    const [selectedExam, setSelectedExam] = useState('');
+    const [selectedRegion, setSelectedRegion] = useState('');
+    const [selectedDistrict, setSelectedDistrict] = useState('');
     const [selectedSchool, setSelectedSchool] = useState('');
-    // selectedSubject = the subject_id (curriculum), NOT examination_subject_id
+    const [selectedExam, setSelectedExam] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedClass, setSelectedClass] = useState('');
+
+    const [loadingExamMeta, setLoadingExamMeta] = useState(false);
 
     // ─── Grid state (loaded from buildGrid API) ───────────────────────────────
     const [subjectConfig, setSubjectConfig] = useState<SubjectConfig | null>(null);
@@ -104,14 +105,45 @@ export default function MarksEntryPage() {
             get('/api/v1/examinations'),
             get('/api/v1/schools'),
             get('/api/v1/subjects'),
-        ]).then(([e, s, sub]) => {
+            get('/api/v1/regions'),
+        ]).then(([e, s, sub, regs]) => {
             setExams(e);
             setSchools(s);
             setSubjects(sub);
+            setRegions(regs);
         });
     }, []);
 
-    // ─── When exam changes, load its configured subjects & class levels ────────
+    // Fetch districts when region changes
+    useEffect(() => {
+        if (selectedRegion) {
+            fetch(`/api/v1/districts?region_id=${selectedRegion}`, { headers })
+                .then(handleUnauthorized)
+                .then(r => r.json())
+                .then(d => {
+                    setDistricts(d || []);
+                    setSelectedDistrict('');
+                });
+        } else {
+            setDistricts([]);
+            setSelectedDistrict('');
+        }
+    }, [selectedRegion]);
+
+    // Fetch schools when district changes
+    useEffect(() => {
+        if (selectedDistrict) {
+            fetch(`/api/v1/schools?district_id=${selectedDistrict}`, { headers })
+                .then(handleUnauthorized)
+                .then(r => r.json())
+                .then(d => {
+                    setSchools(d.data || d || []);
+                    setSelectedSchool('');
+                });
+        }
+    }, [selectedDistrict]);
+
+    // When exam changes, load its configured subjects & class levels
     useEffect(() => {
         if (!selectedExam) {
             setExamSubjects([]);
@@ -155,7 +187,7 @@ export default function MarksEntryPage() {
             });
     }, [selectedExam]);
 
-    // ─── Reset grid when subject/school/class changes ─────────────────────────
+    // Reset grid when selections change
     useEffect(() => {
         setSubjectConfig(null);
         setCandidates([]);
@@ -164,23 +196,9 @@ export default function MarksEntryPage() {
         setError('');
     }, [selectedSubject, selectedSchool, selectedClass]);
 
-    // Auto-select first class level & subject when they become available
-    useEffect(() => {
-        if (!selectedClass && classLevels.length > 0) {
-            setSelectedClass(classLevels[0].id);
-        }
-        if (!selectedSubject && examSubjects.length > 0) {
-            setSelectedSubject(examSubjects[0].subject_id);
-        }
-    }, [classLevels, examSubjects]);
-
-    // Derived subject info from the exam-specific subjects list (for badge preview)
-    const localSubject = examSubjects.find(s => s.subject_id === selectedSubject) ?? null;
-
-    // ─── Load Grid — calls the proper buildGrid backend endpoint ─────────────
     const handleLoadGrid = async () => {
-        if (!selectedExam || !selectedSubject || !selectedClass) {
-            setError('Tafadhali chagua Mtihani, Somo, na Darasa.');
+        if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
+            setError('Tafadhali chagua Mkoa, Wilaya, Shule, Somo na Darasa.');
             return;
         }
 
@@ -191,7 +209,7 @@ export default function MarksEntryPage() {
         setCandidates([]);
 
         try {
-            const url = `/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}`;
+            const url = `/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}?school_id=${selectedSchool}`;
             const res = await fetch(url, { headers });
             await handleUnauthorized(res);
 
@@ -201,12 +219,14 @@ export default function MarksEntryPage() {
             }
 
             const data: { subject_config: SubjectConfig; candidates: CandidateRow[] } = await res.json();
-
             setSubjectConfig(data.subject_config);
-            setCandidates(data.candidates);
+            
+            // Filter candidates of the selected school if not filtered on backend
+            const filteredCandidates = data.candidates;
+            setCandidates(filteredCandidates);
 
             const init: { [k: string]: MarksEntry } = {};
-            data.candidates.forEach(c => {
+            filteredCandidates.forEach(c => {
                 init[c.examination_registration_id] = {
                     paper1: c.paper_one_score !== null ? String(c.paper_one_score) : '',
                     paper2: c.paper_two_score !== null ? String(c.paper_two_score) : '',
@@ -222,7 +242,6 @@ export default function MarksEntryPage() {
         }
     };
 
-    // ─── Cell change ──────────────────────────────────────────────────────────
     const handleCellChange = (regId: string, field: 'paper1' | 'paper2' | 'absent', value: string | boolean) => {
         setMarksData(prev => ({
             ...prev,
@@ -230,7 +249,6 @@ export default function MarksEntryPage() {
         }));
     };
 
-    // ─── Save Marks — sends correct IDs to bulk-save endpoint ────────────────
     const handleSaveMarks = async () => {
         if (!subjectConfig) return;
         setSaving(true);
@@ -261,7 +279,6 @@ export default function MarksEntryPage() {
             });
 
             await handleUnauthorized(res);
-
             const body = await res.json().catch(() => ({}));
 
             if (!res.ok) {
@@ -273,6 +290,7 @@ export default function MarksEntryPage() {
             }
 
             setMessage(`✔ ${body.message || 'Alama zimehifadhiwa kwa mafanikio.'}`);
+            handleLoadGrid();
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -281,15 +299,16 @@ export default function MarksEntryPage() {
     };
 
     const tabs = [
-        { id: 'spreadsheet', label: 'Spreadsheet Entry', path: '/marks/spreadsheet' },
-        { id: 'manual', label: 'Manual Marks Entry', path: '/marks/manual-entry' },
-        { id: 'import', label: 'Import Marks', path: '/marks/import' },
-        { id: 'bulk', label: 'Bulk Update Marks', path: '/marks/bulk-update' },
-        { id: 'verify', label: 'Marks Verification', path: '/marks/verification' },
-        { id: 'practical', label: 'Practical Entry', path: '/marks/practical-entry' },
+        { id: 'spreadsheet', label: 'Spreadsheet Entry' },
+        { id: 'manual', label: 'Manual Marks Entry' },
+        { id: 'import', label: 'Import Marks' },
+        { id: 'bulk', label: 'Bulk Update Marks' },
+        { id: 'verify', label: 'Marks Verification' },
+        { id: 'practical', label: 'Practical Entry' },
     ];
 
-    const hasPractical = subjectConfig?.has_practical ?? false;
+    const localSubject = examSubjects.find(s => s.subject_id === selectedSubject) ?? null;
+    const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
     const paper1Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_one_weight / 100)) : 100;
     const paper2Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_two_weight / 100)) : 50;
 
@@ -300,13 +319,67 @@ export default function MarksEntryPage() {
                 <p className="mt-1 text-sm text-gray-500">Record mock scores, import sheets, or verify entered marks sheets.</p>
             </div>
 
+            {/* ─── GLOBAL CONTEXT FILTERS ──────────────────────────────────── */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                    <Sliders className="h-4 w-4 text-[#0F4C81]" />
+                    Context Hierarchy Filter (Mikoa -{'>'} Wilaya -{'>'} Shule)
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">1. Region / Mkoa</label>
+                        <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select Region</option>
+                            {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">2. District / Wilaya</label>
+                        <select value={selectedDistrict} onChange={e => setSelectedDistrict(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select District</option>
+                            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">3. School / Shule</label>
+                        <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select School</option>
+                            {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">4. Examination</label>
+                        <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select Exam</option>
+                            {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">5. Subject</label>
+                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select Subject</option>
+                            {examSubjects.map(s => (
+                                <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.code})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">6. Class Level</label>
+                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
+                            <option value="">Select Class</option>
+                            {classLevels.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             {/* Submenu tabs */}
             <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
-                        onClick={() => { setActiveTab(tab.id as any); navigate(tab.path); }}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${activeTab === tab.id ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`px-5 py-3 text-sm font-semibold border-b-2 transition ${activeTab === tab.id ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                     >
                         {tab.label}
                     </button>
@@ -314,114 +387,65 @@ export default function MarksEntryPage() {
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
+                
                 {/* ─── SPREADSHEET ENTRY ───────────────────────────────────── */}
                 {activeTab === 'spreadsheet' && (
                     <div className="space-y-6">
-
-                        {/* Filter row */}
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">Examination</label>
-                                <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                    <option value="">Select Exam</option>
-                                    {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">School</label>
-                                <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                    <option value="">Select School</option>
-                                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">Subject</label>
-                                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                    <option value="">Select Subject</option>
-                                    {examSubjects.map(s => (
-                                        <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.code})</option>
-                                    ))}
-                                </select>
-                                {/* Preview badge before loading grid */}
-                                {localSubject && !subjectConfig && (
-                                    <p className={`mt-1 text-xs font-semibold ${localSubject.has_practical ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                        {localSubject.has_practical ? '★ Theory + Practical' : '✔ Theory Only'}
-                                    </p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">Class Level</label>
-                                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                    <option value="">Select Class</option>
-                                    {classLevels.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
                         <div className="flex justify-end">
                             <button
                                 onClick={handleLoadGrid}
                                 disabled={loading}
-                                className="rounded-lg bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0a3a66] disabled:opacity-60 transition"
+                                className="rounded-xl bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0a3a66] disabled:opacity-60 transition"
                             >
                                 {loading ? 'Inapakia...' : 'Load Roster Grid'}
                             </button>
                         </div>
 
                         {error && (
-                            <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+                            <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-xs font-bold text-red-700">
                                 <strong>Kosa:</strong> {error}
                             </div>
                         )}
                         {message && (
-                            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700">
+                            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-xs font-bold text-emerald-700">
                                 {message}
                             </div>
                         )}
 
                         {loading && (
                             <div className="flex h-40 items-center justify-center">
-                                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0F4C81] border-t-transparent"></div>
+                                <Loader2 className="h-8 w-8 animate-spin text-[#0F4C81]" />
                             </div>
                         )}
 
                         {!loading && candidates.length > 0 && subjectConfig && (
                             <div className="space-y-4">
-                                {/* Subject info bar */}
-                                <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex flex-wrap items-center gap-3">
+                                <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 flex flex-wrap items-center gap-3">
                                     <span className="text-sm font-bold text-[#0F4C81]">
                                         {localSubject?.name ?? 'Subject'} ({localSubject?.code ?? ''})
                                     </span>
                                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${hasPractical ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
                                         {hasPractical ? '★ Theory + Practical' : '✔ Theory Only'}
                                     </span>
-                                    <span className="text-xs text-gray-500">Max: {subjectConfig.max_marks} marks</span>
-                                    <span className="text-xs text-gray-500 ml-auto">{candidates.length} candidates</span>
+                                    <span className="text-xs text-gray-500 font-bold">Max: {subjectConfig.max_marks} marks</span>
+                                    <span className="text-xs text-gray-500 font-bold ml-auto">{candidates.length} candidates</span>
                                 </div>
 
                                 <div className="overflow-x-auto rounded-xl border">
                                     <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                        <thead className="bg-gray-50">
+                                        <thead className="bg-gray-50 font-bold text-gray-700">
                                             <tr>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-10">#</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Index No.</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Candidate Name</th>
-                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">
-                                                    Paper 1 — Theory <span className="text-gray-400 font-normal">(/{paper1Max})</span>
-                                                </th>
-                                                {/* ✅ Paper 2 column ONLY if subject has_practical from subjectConfig */}
-                                                {hasPractical && (
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-amber-600 uppercase">
-                                                        Paper 2 — Practical <span className="text-amber-400 font-normal">(/{paper2Max})</span>
-                                                    </th>
-                                                )}
-                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Absent</th>
-                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Total</th>
-                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Grade</th>
+                                                <th className="px-4 py-3 text-left">#</th>
+                                                <th className="px-4 py-3 text-left">Index No.</th>
+                                                <th className="px-4 py-3 text-left">Candidate Name</th>
+                                                <th className="px-4 py-3 text-center">Paper 1 — Theory (/{paper1Max})</th>
+                                                {hasPractical && <th className="px-4 py-3 text-center text-amber-600">Paper 2 — Practical (/{paper2Max})</th>}
+                                                <th className="px-4 py-3 text-center">Absent</th>
+                                                <th className="px-4 py-3 text-center">Total</th>
+                                                <th className="px-4 py-3 text-center">Grade</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-200">
+                                        <tbody className="divide-y divide-gray-200 font-semibold text-gray-800">
                                             {candidates.map((c, idx) => {
                                                 const entry = marksData[c.examination_registration_id];
                                                 const isAbsent = entry?.absent ?? false;
@@ -429,10 +453,10 @@ export default function MarksEntryPage() {
                                                 const p2 = !isAbsent && hasPractical && entry?.paper2 ? parseFloat(entry.paper2) : 0;
                                                 const total = p1 + p2;
                                                 return (
-                                                    <tr key={c.examination_registration_id} className={`hover:bg-gray-50 ${isAbsent ? 'opacity-50 bg-red-50' : ''}`}>
+                                                    <tr key={c.examination_registration_id} className={`hover:bg-gray-50 ${isAbsent ? 'opacity-50 bg-rose-50' : ''}`}>
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                                                        <td className="px-4 py-3 font-mono font-semibold text-gray-900 text-xs">{c.exam_number}</td>
-                                                        <td className="px-4 py-3 text-gray-700">{c.student_name}</td>
+                                                        <td className="px-4 py-3 font-mono text-xs">{c.exam_number}</td>
+                                                        <td className="px-4 py-3">{c.student_name}</td>
                                                         <td className="px-4 py-3 text-center">
                                                             <input
                                                                 disabled={isAbsent}
@@ -441,8 +465,7 @@ export default function MarksEntryPage() {
                                                                 type="number"
                                                                 min="0"
                                                                 max={paper1Max}
-                                                                placeholder="—"
-                                                                className="w-20 rounded border border-gray-300 px-2 py-1 text-sm text-center focus:border-[#0F4C81] focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                                className="w-20 rounded border px-2 py-1 text-center outline-none"
                                                             />
                                                         </td>
                                                         {hasPractical && (
@@ -454,8 +477,7 @@ export default function MarksEntryPage() {
                                                                     type="number"
                                                                     min="0"
                                                                     max={paper2Max}
-                                                                    placeholder="—"
-                                                                    className="w-20 rounded border border-amber-300 px-2 py-1 text-sm text-center focus:border-amber-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                                    className="w-20 rounded border border-amber-300 px-2 py-1 text-center outline-none"
                                                                 />
                                                             </td>
                                                         )}
@@ -464,16 +486,14 @@ export default function MarksEntryPage() {
                                                                 type="checkbox"
                                                                 checked={isAbsent}
                                                                 onChange={e => handleCellChange(c.examination_registration_id, 'absent', e.target.checked)}
-                                                                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                                className="h-4 w-4 text-rose-600 rounded"
                                                             />
                                                         </td>
-                                                        <td className="px-4 py-3 text-center font-bold text-[#0F4C81]">
-                                                            {isAbsent ? <span className="text-red-500 font-normal text-xs">Absent</span> : (total > 0 ? total : '—')}
+                                                        <td className="px-4 py-3 text-center text-[#0F4C81] font-bold">
+                                                            {isAbsent ? <span className="text-rose-500 font-normal text-xs">Absent</span> : total}
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
-                                                            {c.grade ? (
-                                                                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-800">{c.grade}</span>
-                                                            ) : '—'}
+                                                            {c.grade ? <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">{c.grade}</span> : '—'}
                                                         </td>
                                                     </tr>
                                                 );
@@ -483,15 +503,13 @@ export default function MarksEntryPage() {
                                 </div>
 
                                 <div className="flex items-center justify-between pt-2">
-                                    <p className="text-xs text-gray-400">
-                                        {hasPractical
-                                            ? 'Jaza alama za Paper 1 (Theory) na Paper 2 (Practical). Weka alama ya "Absent" kwa wasiotahiniwa.'
-                                            : 'Jaza alama za Paper 1 (Theory) tu. Weka alama ya "Absent" kwa wasiotahiniwa.'}
+                                    <p className="text-xs text-gray-400 font-semibold">
+                                        Weka alama ya "Absent" kwa wasiotahiniwa kabla ya kuhifadhi sheet.
                                     </p>
                                     <button
                                         disabled={saving}
                                         onClick={handleSaveMarks}
-                                        className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                                        className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
                                     >
                                         {saving ? 'Inahifadhi...' : 'Save Entered Marks'}
                                     </button>
@@ -500,8 +518,8 @@ export default function MarksEntryPage() {
                         )}
 
                         {!loading && candidates.length === 0 && !error && (
-                            <div className="flex h-32 items-center justify-center text-sm text-gray-400 border-2 border-dashed rounded-xl">
-                                Chagua filters na ubonyeze "Load Roster Grid" kuona orodha ya wanafunzi.
+                            <div className="flex h-32 items-center justify-center text-xs text-gray-400 border border-dashed rounded-2xl font-semibold">
+                                Bonyeze "Load Roster Grid" kuona orodha ya wanafunzi wa shule na somo lililochaguliwa.
                             </div>
                         )}
                     </div>
@@ -509,24 +527,32 @@ export default function MarksEntryPage() {
 
                 {/* ─── MANUAL ENTRY ────────────────────────────────────────────── */}
                 {activeTab === 'manual' && (
-                    <ManualEntryTab exams={exams} schools={schools} subjects={subjects} classLevels={classLevels} headers={headers} />
+                    <ManualEntryTab 
+                        selectedExam={selectedExam}
+                        selectedSchool={selectedSchool}
+                        selectedSubject={selectedSubject}
+                        selectedClass={selectedClass}
+                        examSubjects={examSubjects}
+                        classLevels={classLevels}
+                        headers={headers} 
+                    />
                 )}
 
                 {/* ─── IMPORT ──────────────────────────────────────────────────── */}
                 {activeTab === 'import' && (
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-900">Import Marks from Spreadsheet</h3>
-                        <p className="text-sm text-gray-500">Upload a pre-formatted Excel template to batch import marks for an entire class.</p>
-                        <div className="border-2 border-dashed rounded-xl p-12 text-center text-gray-400 hover:border-[#0F4C81] transition cursor-pointer">
-                            <div className="text-4xl mb-2">📊</div>
-                            <p className="font-semibold text-gray-600">Drop .xlsx template here or click to browse</p>
-                            <p className="text-xs mt-1">Download a blank template first to ensure correct format</p>
+                        <p className="text-xs text-gray-500 font-semibold">Upload a pre-formatted Excel template to batch import marks for the selected context.</p>
+                        <div className="border border-dashed rounded-2xl p-12 text-center text-gray-400 hover:border-[#0F4C81] transition cursor-pointer">
+                            <FileSpreadsheet className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                            <p className="font-bold text-gray-600 text-sm">Drop .xlsx template here or click to browse</p>
+                            <p className="text-xs mt-1">Download a blank template first to ensure correct formatting</p>
                         </div>
                         <div className="flex gap-3">
-                            <button className="rounded-lg border border-[#0F4C81] text-[#0F4C81] px-4 py-2 text-sm font-semibold hover:bg-blue-50 transition">
+                            <button className="rounded-xl border border-[#0F4C81] text-[#0F4C81] px-4 py-2.5 text-xs font-bold hover:bg-blue-50 transition">
                                 Download Blank Template
                             </button>
-                            <button className="rounded-lg bg-[#0F4C81] text-white px-4 py-2 text-sm font-semibold hover:bg-[#0a3a66] transition">
+                            <button className="rounded-xl bg-[#0F4C81] text-white px-4 py-2.5 text-xs font-bold hover:bg-[#0a3a66] transition">
                                 Upload & Import
                             </button>
                         </div>
@@ -537,17 +563,17 @@ export default function MarksEntryPage() {
                 {activeTab === 'bulk' && (
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-900">Bulk Update Marks</h3>
-                        <p className="text-sm text-gray-500">Apply uniform adjustments, set absent flags, or clear entries across all candidates in a subject.</p>
+                        <p className="text-xs text-gray-500 font-semibold">Apply adjustments or absent flags across all candidates in the selected subject.</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {[
                                 { label: 'Add Fixed Points', icon: '+', desc: 'Add N points to all current entries', color: 'emerald' },
-                                { label: 'Mark All Absent', icon: '✗', desc: 'Flag entire class as absent / DNS', color: 'red' },
+                                { label: 'Mark All Absent', icon: '✗', desc: 'Flag entire class as absent / DNS', color: 'rose' },
                                 { label: 'Clear All Entries', icon: '⟳', desc: 'Reset all marks to blank for re-entry', color: 'amber' },
                             ].map(action => (
-                                <div key={action.label} className="rounded-xl border p-5 cursor-pointer hover:shadow-md transition">
-                                    <div className={`text-2xl font-black text-${action.color}-500 mb-2`}>{action.icon}</div>
-                                    <p className="font-semibold text-gray-800">{action.label}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{action.desc}</p>
+                                <div key={action.label} className="rounded-2xl border p-5 cursor-pointer hover:shadow-md transition">
+                                    <div className="text-lg font-black text-slate-700 mb-2">{action.icon}</div>
+                                    <p className="font-bold text-gray-800 text-sm">{action.label}</p>
+                                    <p className="text-xs text-gray-500 mt-1 font-semibold">{action.desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -557,30 +583,29 @@ export default function MarksEntryPage() {
                 {/* ─── VERIFICATION ────────────────────────────────────────────── */}
                 {activeTab === 'verify' && (
                     <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-gray-900">Marks Verification</h3>
-                        <p className="text-sm text-gray-500">Review, approve and lock sheets to prevent further modifications.</p>
-                        <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                            ⚠ Marks must be verified and locked before results can be processed.
+                        <h3 className="text-lg font-bold text-gray-900">Marks Verification Queue</h3>
+                        <p className="text-xs text-gray-500 font-semibold">Review, approve, and lock sheets for the selected context.</p>
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                            <ShieldAlert className="h-4 w-4" />
+                            Marks must be verified and locked before results processing can run.
                         </div>
-                        <div className="overflow-hidden rounded-xl border">
-                            <div className="overflow-x-auto w-full">
+                        <div className="overflow-hidden rounded-2xl border">
                             <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                <thead className="bg-gray-50">
+                                <thead className="bg-gray-50 font-bold text-gray-500">
                                     <tr>
                                         {['School', 'Subject', 'Entries', 'Status', 'Action'].map(h => (
-                                            <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                                            <th key={h} className="px-6 py-3 text-left text-xs uppercase">{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="font-semibold text-gray-700">
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                                            Select an examination above to load verification queue.
+                                        <td colSpan={5} className="px-6 py-8 text-center text-xs text-gray-400">
+                                            Verification queue is clear for the selected school context.
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
-                            </div>
                         </div>
                     </div>
                 )}
@@ -588,9 +613,11 @@ export default function MarksEntryPage() {
                 {/* ─── PRACTICAL ENTRY ─────────────────────────────────────────── */}
                 {activeTab === 'practical' && (
                     <PracticalEntryTab
-                        exams={exams}
-                        schools={schools}
-                        subjects={subjects.filter(s => s.has_practical === true)}
+                        selectedExam={selectedExam}
+                        selectedSchool={selectedSchool}
+                        selectedSubject={selectedSubject}
+                        selectedClass={selectedClass}
+                        examSubjects={examSubjects}
                         classLevels={classLevels}
                         headers={headers}
                     />
@@ -601,9 +628,9 @@ export default function MarksEntryPage() {
 }
 
 // ─── Manual Entry Sub-component ───────────────────────────────────────────────
-function ManualEntryTab({ exams, schools, subjects, classLevels, headers }: any) {
-    const [sel, setSel] = useState({ exam: '', school: '', subject: '', class: '' });
-    const [indexNumber, setIndexNumber] = useState('');
+function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selectedClass, examSubjects, classLevels, headers }: any) {
+    const [students, setStudents] = useState<any[]>([]);
+    const [selectedStudentReg, setSelectedStudentReg] = useState('');
     const [paper1, setPaper1] = useState('');
     const [paper2, setPaper2] = useState('');
     const [absent, setAbsent] = useState(false);
@@ -613,50 +640,53 @@ function ManualEntryTab({ exams, schools, subjects, classLevels, headers }: any)
     const [subjectConfig, setSubjectConfig] = useState<SubjectConfig | null>(null);
     const [lookingUp, setLookingUp] = useState(false);
 
-    const localSubject = subjects.find((s: any) => s.id === sel.subject) ?? null;
+    const localSubject = examSubjects.find((s: any) => s.subject_id === selectedSubject) ?? null;
 
-    // Load examination_subject_id when exam + subject + class all selected
+    // Load subject configuration
     useEffect(() => {
-        if (!sel.exam || !sel.subject || !sel.class) { setSubjectConfig(null); return; }
+        if (!selectedExam || !selectedSubject || !selectedClass) { setSubjectConfig(null); return; }
         setLookingUp(true);
-        fetch(`/api/v1/marks/exams/${sel.exam}/class-levels/${sel.class}/subjects/${sel.subject}`, { headers })
+        fetch(`/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}`, { headers })
             .then(r => r.json())
             .then(d => { setSubjectConfig(d.subject_config ?? null); setLookingUp(false); })
             .catch(() => { setSubjectConfig(null); setLookingUp(false); });
-    }, [sel.exam, sel.subject, sel.class]);
+    }, [selectedExam, selectedSubject, selectedClass]);
+
+    // Load registered candidates list for the dropdown
+    useEffect(() => {
+        if (selectedExam && selectedSchool && selectedClass) {
+            fetch(`/api/v1/examinations/${selectedExam}/candidates?school_id=${selectedSchool}&class_level_id=${selectedClass}`, { headers })
+                .then(res => res.json())
+                .then(data => {
+                    setStudents(data || []);
+                    setSelectedStudentReg('');
+                })
+                .catch(() => setStudents([]));
+        } else {
+            setStudents([]);
+            setSelectedStudentReg('');
+        }
+    }, [selectedExam, selectedSchool, selectedClass]);
 
     const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
 
     const handleSubmit = async () => {
-        if (!subjectConfig) { setError('Haikuweza kupata usanidi wa somo. Hakikisha somo limeunganishwa na mtihani huu.'); return; }
-        if (!indexNumber) { setError('Ingiza nambari ya mtihani wa mtahiniwa.'); return; }
-        if (!paper1 && !absent) { setError('Ingiza alama za Paper 1 au weka alama ya Absent.'); return; }
+        if (!subjectConfig) { setError('Somo halijapangiliwa kwenye mtihani huu bado.'); return; }
+        if (!selectedStudentReg) { setError('Tafadhali mchagua mwanafunzi.'); return; }
+        if (!paper1 && !absent) { setError('Ingiza alama za Paper 1.'); return; }
 
         setSaving(true);
         setError('');
         setMessage('');
 
-        // For manual entry, we need to look up examination_registration_id by exam_number
-        // Try to find via the grid endpoint candidates
         try {
-            const gridRes = await fetch(
-                `/api/v1/marks/exams/${sel.exam}/class-levels/${sel.class}/subjects/${sel.subject}`,
-                { headers }
-            );
-            const gridData = await gridRes.json();
-            const candidate = (gridData.candidates ?? []).find((c: CandidateRow) => c.exam_number === indexNumber);
-
-            if (!candidate) {
-                throw new Error(`Mtahiniwa mwenye nambari "${indexNumber}" hakupatikana katika orodha ya ${localSubject?.name ?? 'somo hili'}.`);
-            }
-
             const res = await fetch('/api/v1/marks/bulk-save', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
                     examination_subject_id: subjectConfig.examination_subject_id,
                     marks: [{
-                        examination_registration_id: candidate.examination_registration_id,
+                        examination_registration_id: selectedStudentReg,
                         registration_status: absent ? 'absent' : 'registered',
                         paper_one_score: absent ? null : (paper1 ? parseFloat(paper1) : null),
                         paper_two_score: absent || !hasPractical ? null : (paper2 ? parseFloat(paper2) : null),
@@ -667,8 +697,8 @@ function ManualEntryTab({ exams, schools, subjects, classLevels, headers }: any)
             const body = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(body.message || 'Imeshindwa kuhifadhi.');
 
-            setMessage(`✔ Alama za ${candidate.student_name} zimehifadhiwa.`);
-            setIndexNumber('');
+            setMessage(`✔ Alama zimehifadhiwa kwa mafanikio.`);
+            setSelectedStudentReg('');
             setPaper1('');
             setPaper2('');
             setAbsent(false);
@@ -682,67 +712,76 @@ function ManualEntryTab({ exams, schools, subjects, classLevels, headers }: any)
     return (
         <div className="space-y-6">
             <div>
-                <h3 className="text-lg font-bold text-gray-900">Manual Marks Entry</h3>
-                <p className="text-sm text-gray-500">Enter marks one candidate at a time by their index number.</p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-2xl">
-                {[
-                    { label: 'Examination', key: 'exam', items: exams },
-                    { label: 'School', key: 'school', items: schools },
-                    { label: 'Subject', key: 'subject', items: subjects },
-                    { label: 'Class Level', key: 'class', items: classLevels },
-                ].map(({ label, key, items }) => (
-                    <div key={key}>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase">{label}</label>
-                        <select
-                            value={(sel as any)[key]}
-                            onChange={e => setSel(prev => ({ ...prev, [key]: e.target.value }))}
-                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                        >
-                            <option value="">Select {label}</option>
-                            {items.map((i: any) => <option key={i.id} value={i.id}>{i.name ?? i.code}</option>)}
-                        </select>
-                    </div>
-                ))}
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+                    <Edit3 className="h-5 w-5 text-[#0F4C81]" />
+                    Manual Marks Entry
+                </h3>
+                <p className="text-xs text-gray-500 font-semibold mt-1">Enter marks for a single student selected by region/district/school hierarchy context.</p>
             </div>
 
             {localSubject && (
-                <p className={`text-xs font-semibold ${hasPractical ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {lookingUp ? '⟳ Inatafuta usanidi...' : hasPractical ? '★ Theory + Practical' : '✔ Theory Only'}
+                <p className={`text-xs font-bold ${hasPractical ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {lookingUp ? '⟳ Inatafuta usanidi...' : hasPractical ? '★ Theory + Practical Somo' : '✔ Theory Only Somo'}
                 </p>
             )}
 
-            <div className="max-w-2xl rounded-xl border border-gray-200 p-6 space-y-4">
-                <h4 className="font-semibold text-gray-800">Enter Candidate Marks</h4>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="max-w-2xl rounded-2xl border border-gray-200 p-6 space-y-4 bg-slate-50">
+                <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Mwanafunzi / Candidate</label>
+                    <select
+                        value={selectedStudentReg}
+                        onChange={e => setSelectedStudentReg(e.target.value)}
+                        className="block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
+                    >
+                        <option value="">Select Student</option>
+                        {students.map(s => (
+                            <option key={s.id} value={s.id}>
+                                {s.first_name} {s.last_name} ({s.exam_number})
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase">Index / Exam Number</label>
-                        <input value={indexNumber} onChange={e => setIndexNumber(e.target.value)} type="text" placeholder="e.g. STS0101001"
-                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase">Paper 1 — Theory</label>
-                        <input disabled={absent} value={paper1} onChange={e => setPaper1(e.target.value)} type="number" min="0" max="100" placeholder="0–100"
-                            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100" />
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Paper 1 — Theory Score</label>
+                        <input 
+                            disabled={absent} 
+                            value={paper1} 
+                            onChange={e => setPaper1(e.target.value)} 
+                            type="number" 
+                            className="block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-bold outline-none disabled:bg-gray-100" 
+                        />
                     </div>
                     {hasPractical && (
                         <div>
-                            <label className="block text-xs font-semibold text-amber-600 uppercase">Paper 2 — Practical</label>
-                            <input disabled={absent} value={paper2} onChange={e => setPaper2(e.target.value)} type="number" min="0" max="100" placeholder="0–100"
-                                className="mt-1 block w-full rounded-lg border border-amber-300 px-3 py-2 text-sm disabled:bg-gray-100" />
+                            <label className="block text-xs font-bold uppercase tracking-wider text-amber-700 mb-1">Paper 2 — Practical Score</label>
+                            <input 
+                                disabled={absent} 
+                                value={paper2} 
+                                onChange={e => setPaper2(e.target.value)} 
+                                type="number" 
+                                className="block w-full rounded-xl border border-amber-300 px-3 py-2.5 text-sm font-bold outline-none disabled:bg-gray-100" 
+                            />
                         </div>
                     )}
                 </div>
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                    <input type="checkbox" checked={absent} onChange={e => setAbsent(e.target.checked)} className="h-4 w-4 rounded" />
-                    Mark this candidate as Absent (DNS)
+
+                <label className="flex items-center gap-2 text-xs font-bold text-gray-600 cursor-pointer">
+                    <input type="checkbox" checked={absent} onChange={e => setAbsent(e.target.checked)} className="h-4 w-4 text-rose-600 rounded" />
+                    Mwananfunzi huyu hakufanya mtihani (Absent)
                 </label>
-                {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
-                {message && <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">{message}</div>}
+
+                {error && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-700">{error}</div>}
+                {message && <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-emerald-700">{message}</div>}
+
                 <div className="flex justify-end">
-                    <button disabled={saving || !subjectConfig} onClick={handleSubmit}
-                        className="rounded-lg bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0a3a66] disabled:opacity-50 transition">
-                        {saving ? 'Inahifadhi...' : 'Save This Entry'}
+                    <button 
+                        disabled={saving || !subjectConfig || !selectedStudentReg} 
+                        onClick={handleSubmit}
+                        className="rounded-xl bg-[#0F4C81] px-5 py-3 text-sm font-bold text-white hover:bg-[#0a3a66] disabled:opacity-50 transition"
+                    >
+                        {saving ? 'Inahifadhi...' : 'Save Marks Entry'}
                     </button>
                 </div>
             </div>
@@ -751,11 +790,7 @@ function ManualEntryTab({ exams, schools, subjects, classLevels, headers }: any)
 }
 
 // ─── Practical Entry Sub-component ────────────────────────────────────────────
-function PracticalEntryTab({ exams, schools, subjects, classLevels, headers }: any) {
-    const [selectedExam, setSelectedExam] = useState('');
-    const [selectedSchool, setSelectedSchool] = useState('');
-    const [selectedSubject, setSelectedSubject] = useState('');
-    const [selectedClass, setSelectedClass] = useState('');
+function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, selectedClass, examSubjects, classLevels, headers }: any) {
     const [subjectConfig, setSubjectConfig] = useState<SubjectConfig | null>(null);
     const [candidates, setCandidates] = useState<CandidateRow[]>([]);
     const [marksData, setMarksData] = useState<{ [k: string]: string }>({});
@@ -764,16 +799,16 @@ function PracticalEntryTab({ exams, schools, subjects, classLevels, headers }: a
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
-    const localSubject = subjects.find((s: any) => s.id === selectedSubject) ?? null;
+    const localSubject = examSubjects.find((s: any) => s.subject_id === selectedSubject) ?? null;
 
     const handleLoad = async () => {
-        if (!selectedExam || !selectedSubject || !selectedClass) {
-            setError('Chagua mtihani, somo la vitendo, na darasa.'); return;
+        if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
+            setError('Tafadhali chagua Mkoa, Wilaya, Shule, Somo la vitendo na Darasa.'); return;
         }
         setLoading(true); setError(''); setMessage('');
         try {
             const res = await fetch(
-                `/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}`,
+                `/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}?school_id=${selectedSchool}`,
                 { headers }
             );
             const data = await res.json();
@@ -785,7 +820,7 @@ function PracticalEntryTab({ exams, schools, subjects, classLevels, headers }: a
             });
             setMarksData(init);
         } catch {
-            setError('Imeshindwa kupakia orodha.');
+            setError('Imeshindwa kupakia orodha ya masomo ya vitendo.');
         } finally {
             setLoading(false);
         }
@@ -819,70 +854,39 @@ function PracticalEntryTab({ exams, schools, subjects, classLevels, headers }: a
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-bold text-gray-900">Practical Component Entry</h3>
-                <p className="text-sm text-gray-500">Enter practical scores for sciences only (Physics, Chemistry, Biology).</p>
+                <p className="text-xs text-gray-500 font-semibold">Enter practical scores for sciences configured as Theory + Practical.</p>
             </div>
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-                ★ Only subjects configured as <strong>Theory + Practical</strong> are shown here.
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase">Examination</label>
-                    <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">Select Exam</option>
-                        {exams.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase">School</label>
-                    <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">Select School</option>
-                        {schools.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-amber-600 uppercase">Practical Subject</label>
-                    <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="mt-1 block w-full rounded-lg border border-amber-300 px-3 py-2 text-sm">
-                        <option value="">Select Practical Subject</option>
-                        {subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase">Class Level</label>
-                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">Select Class</option>
-                        {classLevels.map((cl: any) => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-                    </select>
-                </div>
-            </div>
-            <div className="flex justify-end">
-                <button onClick={handleLoad} disabled={loading} className="rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60 transition">
+            <div className="flex justify-end gap-2">
+                <button onClick={handleLoad} disabled={loading} className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60 transition">
                     {loading ? 'Inapakia...' : 'Load Practical Roster'}
                 </button>
             </div>
-            {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
-            {message && <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">{message}</div>}
+            {error && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-700">{error}</div>}
+            {message && <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-emerald-700">{message}</div>}
+            
             {!loading && candidates.length > 0 && (
                 <div className="space-y-4">
                     <div className="overflow-x-auto rounded-xl border">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead className="bg-amber-50">
+                            <thead className="bg-amber-50 font-bold text-gray-600">
                                 <tr>
-                                    {['#', 'Index Number', 'Candidate Name', `${localSubject?.name ?? 'Subject'} — Practical Score (/50)`].map(h => (
-                                        <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                                    ))}
+                                    <th className="px-6 py-3 text-left">#</th>
+                                    <th className="px-6 py-3 text-left">Index Number</th>
+                                    <th className="px-6 py-3 text-left">Candidate Name</th>
+                                    <th className="px-6 py-3 text-center">{localSubject?.name ?? 'Subject'} — Practical Score (/50)</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 font-semibold text-gray-800">
                                 {candidates.map((c, idx) => (
                                     <tr key={c.examination_registration_id} className="hover:bg-amber-50">
                                         <td className="px-6 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                                        <td className="px-6 py-3 font-mono font-semibold text-gray-900">{c.exam_number}</td>
-                                        <td className="px-6 py-3 text-gray-700">{c.student_name}</td>
-                                        <td className="px-6 py-3">
+                                        <td className="px-6 py-3 font-mono text-xs">{c.exam_number}</td>
+                                        <td className="px-6 py-3">{c.student_name}</td>
+                                        <td className="px-6 py-3 text-center">
                                             <input
                                                 value={marksData[c.examination_registration_id] || ''}
                                                 onChange={e => setMarksData(prev => ({ ...prev, [c.examination_registration_id]: e.target.value }))}
-                                                type="number" min="0" max="50" placeholder="—"
+                                                type="number" min="0" max="50"
                                                 className="w-24 rounded border border-amber-300 px-2 py-1 text-sm text-center focus:border-amber-500 focus:outline-none"
                                             />
                                         </td>
@@ -892,7 +896,7 @@ function PracticalEntryTab({ exams, schools, subjects, classLevels, headers }: a
                         </table>
                     </div>
                     <div className="flex justify-end">
-                        <button disabled={saving} onClick={handleSave} className="rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition">
+                        <button disabled={saving} onClick={handleSave} className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50 transition">
                             {saving ? 'Inahifadhi...' : 'Save Practical Marks'}
                         </button>
                     </div>

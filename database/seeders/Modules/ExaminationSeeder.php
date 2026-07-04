@@ -119,22 +119,6 @@ class ExaminationSeeder extends Seeder
             );
         }
 
-        if ($formFour) {
-            GradingSystem::firstOrCreate(
-                ['type' => 'subject', 'class_level_id' => $formFour->id],
-                [
-                    'id' => (string) Str::uuid(),
-                    'name' => 'Form Four Subject Grading',
-                ]
-            );
 
-            GradingSystem::firstOrCreate(
-                ['type' => 'division', 'class_level_id' => $formFour->id],
-                [
-                    'id' => (string) Str::uuid(),
-                    'name' => 'Form Four Division Points',
-                ]
-            );
-        }
     }
 }

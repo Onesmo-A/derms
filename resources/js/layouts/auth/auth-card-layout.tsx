@@ -20,8 +20,8 @@ export default function AuthCardLayout({
     description?: string;
 }>) {
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-            <div className="flex w-full max-w-md flex-col gap-6">
+        <div className="flex min-h-svh flex-col items-center justify-between bg-muted p-6 md:p-10">
+            <div className="flex w-full max-w-md flex-col gap-6 flex-1 justify-center">
                 <Link
                     href={home()}
                     className="flex items-center gap-2 self-center font-medium"
@@ -43,6 +43,18 @@ export default function AuthCardLayout({
                     </Card>
                 </div>
             </div>
+            <footer style={{ width: '100%', padding: '12px 0', textAlign: 'center', fontSize: '11px', color: '#64748b', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
+                Powered By{' '}
+                <a
+                    href="https://nativetechnology.africa/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 600, color: '#0F4C81', textDecoration: 'underline' }}
+                >
+                    Native Technology
+                </a>
+                {' '}· v1.0.0
+            </footer>
         </div>
     );
 }

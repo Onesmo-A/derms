@@ -22,8 +22,8 @@ export default function AuthSplitLayout({
                     {name}
                 </Link>
             </div>
-            <div className="w-full lg:p-8">
-                <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+            <div className="w-full lg:p-8 flex flex-col h-full justify-between py-6">
+                <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px] my-auto">
                     <Link
                         href={home()}
                         className="relative z-20 flex items-center justify-center lg:hidden"
@@ -38,6 +38,18 @@ export default function AuthSplitLayout({
                     </div>
                     {children}
                 </div>
+                <footer style={{ width: '100%', padding: '10px 0', textAlign: 'center', fontSize: '11px', color: '#64748b', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
+                    Powered By{' '}
+                    <a
+                        href="https://nativetechnology.africa/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontWeight: 600, color: '#0F4C81', textDecoration: 'underline' }}
+                    >
+                        Native Technology
+                    </a>
+                    {' '}· v1.0.0
+                </footer>
             </div>
         </div>
     );

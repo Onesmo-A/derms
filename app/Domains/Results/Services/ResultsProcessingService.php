@@ -30,10 +30,13 @@ class ResultsProcessingService
 
             $divisionGrading = GradingSystem::where('class_level_id', $classLevelId)
                 ->where('type', 'division')
+                ->whereHas('details')
                 ->first();
 
             if (! $divisionGrading) {
-                $divisionGrading = GradingSystem::where('type', 'division')->first();
+                $divisionGrading = GradingSystem::where('type', 'division')
+                    ->whereHas('details')
+                    ->first();
             }
 
             if (! $divisionGrading) {

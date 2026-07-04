@@ -36,7 +36,7 @@ export default function HelpPage() {
                     <div className="space-y-4 max-w-3xl">
                         <h3 className="text-lg font-bold text-gray-900">District Administrator Guide</h3>
                         <div className="prose text-sm text-gray-600 space-y-4">
-                            <p>Welcome to DERMS. The typical workflow for running an examination is:</p>
+                            <p>Welcome to IREMS. The typical workflow for running an examination is:</p>
                             <ol className="list-decimal pl-5 space-y-2">
                                 <li><strong>Academic Setup</strong>: Ensure you have an active academic year, class levels, and subjects configured.</li>
                                 <li><strong>Schools & Students Registration</strong>: Roster schools and upload student files via Excel bulk templates.</li>
@@ -67,9 +67,9 @@ export default function HelpPage() {
 
                 {activeTab === 'about' && (
                     <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-gray-900">About DERMS</h3>
+                        <h3 className="text-lg font-bold text-gray-900">About IDEMS</h3>
                         <p className="text-sm text-gray-600 max-w-xl">
-                            District Examination & Results Management System (DERMS) is built using Laravel 13, React 19, and PostgreSQL. It delivers high-efficiency educational data analytics and helps councils manage examination processing seamlessly.
+                            Iramba District Examination Management System (IREMS) is built using Laravel 13, React 19, and PostgreSQL. It delivers high-efficiency educational data analytics and helps councils manage examination processing seamlessly.
                         </p>
                         <div className="text-xs text-gray-400">Version 1.0.0 (Release June 2026)</div>
                     </div>

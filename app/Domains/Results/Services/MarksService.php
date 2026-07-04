@@ -80,9 +80,12 @@ class MarksService
 
         $gradingSystem = GradingSystem::where('class_level_id', $examSubject->class_level_id)
             ->where('type', 'subject')
+            ->whereHas('details')
             ->first();
 
-        $gradingSystem ??= GradingSystem::where('type', 'subject')->first();
+        $gradingSystem ??= GradingSystem::where('type', 'subject')
+            ->whereHas('details')
+            ->first();
 
         if (! $gradingSystem) {
             throw new \RuntimeException('No grading scheme configured for subjects. Please create a grading scheme first.');
