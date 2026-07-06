@@ -4,33 +4,35 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Domains\School\Models\District;
+use App\Domains\School\Services\OrganizationCatalogService;
 use Illuminate\Http\Request;
+use App\Services\AccessScopeService;
 use App\Services\AuditLogger;
 
 class DistrictController extends Controller
 {
     /** List all districts, optionally filtered by region. */
-    public function index(Request $request)
+    public function index(Request $request, OrganizationCatalogService $catalogService, AccessScopeService $scopeService)
     {
-        $query = District::with('region')
-            ->withCount('schools');
+        $query = District::with('region')->withCount('schools');
+        $scopeService->applyDistrictScope($query, $request->user());
 
         if ($request->filled('region_id')) {
-            $query->where('region_id', $request->region_id);
+            $query->where('region_id', $request->input('region_id'));
         }
+
+        $districts = $query->orderBy('name')->get();
 
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('code', 'like', '%' . $request->search . '%');
-            });
+            $search = strtolower($request->search);
+            $districts = $districts->filter(fn ($district) => str_contains(strtolower($district->name . ' ' . $district->code), $search))->values();
         }
 
-        return response()->json($query->orderBy('name')->get());
+        return response()->json($districts);
     }
 
     /** Create a new district. */
-    public function store(Request $request, AuditLogger $auditLogger)
+    public function store(Request $request, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $validated = $request->validate([
             'region_id' => 'required|uuid|exists:regions,id',
@@ -38,8 +40,7 @@ class DistrictController extends Controller
             'code'      => 'required|string|max:10|unique:districts,code',
         ]);
 
-        $district = District::create($validated);
-        $district->load('region');
+        $district = $catalogService->storeDistrict($validated);
 
         $auditLogger->log(
             action: 'district.created',
@@ -60,7 +61,7 @@ class DistrictController extends Controller
     }
 
     /** Update an existing district. */
-    public function update(Request $request, string $id, AuditLogger $auditLogger)
+    public function update(Request $request, string $id, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $district = District::findOrFail($id);
 
@@ -71,8 +72,7 @@ class DistrictController extends Controller
         ]);
 
         $old = $district->toArray();
-        $district->update($validated);
-        $district->load('region');
+        $district = $catalogService->updateDistrict($district, $validated);
 
         $auditLogger->log(
             action: 'district.updated',
@@ -87,16 +87,16 @@ class DistrictController extends Controller
     }
 
     /** Soft-delete a district. */
-    public function destroy(string $id, AuditLogger $auditLogger)
+    public function destroy(string $id, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $district = District::withCount('schools')->findOrFail($id);
 
-        if ($district->schools_count > 0) {
-            return response()->json(['message' => 'Cannot delete district that has schools. Reassign schools first.'], 422);
-        }
-
         $old = $district->toArray();
-        $district->delete();
+        try {
+            $catalogService->deleteDistrict($district);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $auditLogger->log(
             action: 'district.deleted',

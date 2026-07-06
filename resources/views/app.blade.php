@@ -38,7 +38,7 @@
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx'])
-        <title>{{ config('app.name', 'DERMS') }}</title>
+        <title>{{ config('app.name', 'IDEMS') }}</title>
     </head>
     <body class="font-sans antialiased">
         <div id="app"></div>

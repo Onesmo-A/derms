@@ -1,4 +1,4 @@
-# DERMS Task Checklist
+# IDEMS Task Checklist
 
 - [x] **Phase 1: Core Setup**
     - [x] Initialize Domain Modules folder structure (`app/Domains/` for all domains)

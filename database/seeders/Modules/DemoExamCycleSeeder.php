@@ -23,12 +23,34 @@ class DemoExamCycleSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('TRUNCATE TABLE sms_logs, marks, examination_registrations, student_exam_summaries, school_exam_summaries, subject_exam_summaries, examination_subjects, examination_class_levels, examinations RESTART IDENTITY CASCADE');
+        $driver = DB::getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('TRUNCATE TABLE sms_logs, marks, examination_registrations, student_exam_summaries, school_exam_summaries, subject_exam_summaries, examination_subjects, examination_class_levels, examinations RESTART IDENTITY CASCADE');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+            foreach ([
+                'sms_logs',
+                'marks',
+                'examination_registrations',
+                'student_exam_summaries',
+                'school_exam_summaries',
+                'subject_exam_summaries',
+                'examination_subjects',
+                'examination_class_levels',
+                'examinations',
+            ] as $table) {
+                DB::table($table)->truncate();
+            }
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
 
         $academicYear = AcademicYear::where('name', '2026')->firstOrFail();
         $formFour = ClassLevel::where('name', 'Form Four')->firstOrFail();
         $examType = ExaminationType::where('code', 'MOCK')->firstOrFail();
-        $admin = \App\Domains\Identity\Models\User::where('email', 'admin@derms.go.tz')->firstOrFail();
+        $admin = \App\Domains\Identity\Models\User::where('email', 'admin@idems.go.tz')->firstOrFail();
 
         $schools = School::orderBy('registration_number')->get();
         $subjects = Subject::orderBy('code')->get();
@@ -39,12 +61,20 @@ class DemoExamCycleSeeder extends Seeder
                 'id' => (string) Str::uuid(),
                 'academic_year_id' => $academicYear->id,
                 'examination_type_id' => $examType->id,
+                'target_class_level_id' => $formFour->id,
+                'code' => 'F4-DMC-2026',
                 'start_date' => '2026-06-01',
                 'end_date' => '2026-06-15',
                 'status' => ExaminationStatus::MarksEntryOpen->value,
                 'created_by' => $admin->id,
             ]
         );
+
+        if (empty($exam->code)) {
+            $exam->code = 'F4-DMC-2026';
+            $exam->target_class_level_id = $formFour->id;
+            $exam->save();
+        }
 
         DB::table('examination_class_levels')->updateOrInsert(
             [
@@ -86,7 +116,7 @@ class DemoExamCycleSeeder extends Seeder
         foreach ($students as $student) {
             $schoolCounters[$student->school_id] = ($schoolCounters[$student->school_id] ?? 0) + 1;
             $candidateIndex = $schoolCounters[$student->school_id];
-            $examNumber = $student->school->registration_number . '/' . str_pad((string) $candidateIndex, 4, '0', STR_PAD_LEFT);
+            $examNumber = $student->school->candidateRegistrationPrefix() . '/' . str_pad((string) $candidateIndex, 4, '0', STR_PAD_LEFT);
 
             $registration = ExaminationRegistration::firstOrCreate(
                 [

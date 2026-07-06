@@ -19,7 +19,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Collection;
 
 /**
- * Excel export service for all DERMS report types.
+ * Excel export service for all IDEMS report types.
  */
 class ExcelExportService
 {
@@ -33,9 +33,11 @@ class ExcelExportService
     public function exportMeritList(
         Examination $exam,
         string $classLevelId,
-        ?string $schoolId = null
+        ?string $schoolId = null,
+        ?string $districtId = null,
+        ?string $regionId = null
     ) {
-        $students = $this->reportingDataService->getMeritList($exam, $classLevelId, $schoolId);
+        $students = $this->reportingDataService->getMeritList($exam, $classLevelId, $schoolId, $districtId, $regionId);
 
         $fileName = 'Merit_List_' . str_replace(' ', '_', $exam->name) . '.xlsx';
 

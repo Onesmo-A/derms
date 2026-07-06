@@ -6,8 +6,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: derms-app:latest
-    container_name: derms_app
+    image: idems-app:latest
+    container_name: idems_app
     restart: unless-stopped
     volumes:
       - .env:/var/www/.env
@@ -15,12 +15,12 @@ services:
       - db
       - redis
     networks:
-      - derms_network
+      - idems_network
 
   # Nginx Web Server (Serves frontend and proxies API)
   web:
     image: nginx:alpine
-    container_name: derms_web
+    container_name: idems_web
     restart: unless-stopped
     ports:
       - "8000:80"
@@ -30,42 +30,42 @@ services:
     depends_on:
       - app
     networks:
-      - derms_network
+      - idems_network
 
   # Redis (Cache, Sessions, Queue management)
   redis:
     image: redis:alpine
-    container_name: derms_redis
+    container_name: idems_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - derms_network
+      - idems_network
 
   # PostgreSQL Database (Production relational storage)
   db:
     image: postgres:17-alpine
-    container_name: derms_db
+    container_name: idems_db
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-derms}
+      POSTGRES_DB: ${DB_DATABASE:-idems}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
-      - derms_network
+      - idems_network
 
   # Laravel Queue Worker (Processes results generation and ranking asynchronously)
   queue-worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: derms_queue_worker
+    container_name: idems_queue_worker
     restart: unless-stopped
     volumes:
       - .env:/var/www/.env
@@ -74,10 +74,10 @@ services:
       - redis
       - app
     networks:
-      - derms_network
+      - idems_network
 
 networks:
-  derms_network:
+  idems_network:
     driver: bridge
 
 volumes:

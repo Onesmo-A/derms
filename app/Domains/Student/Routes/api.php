@@ -7,6 +7,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Student CRUD ──────────────────────────────────────────────────────────
     Route::get('students/stats',           [StudentController::class, 'stats']);
+    Route::get('students/validate',        [StudentController::class, 'validateStudentData']);
     Route::get('students/export',          [StudentController::class, 'export']);
     Route::get('students/template',        [StudentController::class, 'downloadTemplate']);
     Route::get('students/duplicates',      [StudentController::class, 'duplicates']);

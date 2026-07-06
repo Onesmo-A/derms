@@ -1,4 +1,4 @@
-﻿# DERMS - District Examination & Results Management System
+﻿# IDEMS - District Examination & Results Management System
 ## Complete Architecture & Design Diagrams
 
 > **Version:** 1.0 | **Stack:** Laravel 13 + React 19 + PostgreSQL 17 | **Pattern:** Modular Monolith + REST API + SPA
@@ -588,7 +588,7 @@ graph LR
     end
     subgraph CD["GitHub Actions CD"]
         CD1[Build Docker Image]
-        CD2["Push to ghcr.io/org/derms"]
+        CD2["Push to ghcr.io/org/idems"]
         CD3[Blue-Green Switch via Nginx]
     end
     subgraph PROD["Production"]
@@ -611,7 +611,7 @@ graph LR
 
 ```mermaid
 gantt
-    title DERMS Implementation Roadmap
+    title IDEMS Implementation Roadmap
     dateFormat  YYYY-MM-DD
     section Phase 1 Core Setup
     Folder Structure and Migrations      :done, p1a, 2026-06-01, 3d
@@ -687,5 +687,5 @@ gantt
 
 ---
 
-*File: ARCHITECTURE.md | Location: C:\xampp\htdocs\DERMS\ARCHITECTURE.md*
+*File: ARCHITECTURE.md | Location: C:\xampp\htdocs\IDEMS\ARCHITECTURE.md*
 *Last Updated: June 2026 | Status: Current*

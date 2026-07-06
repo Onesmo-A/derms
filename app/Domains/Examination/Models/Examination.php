@@ -23,6 +23,8 @@ class Examination extends Model
     protected $fillable = [
         'academic_year_id',
         'examination_type_id',
+        'target_class_level_id',
+        'code',
         'name',
         'start_date',
         'end_date',
@@ -53,7 +55,17 @@ class Examination extends Model
     }
 
     /**
-     * Get the class levels involved in this examination.
+     * Get the primary class level targeted by this examination.
+     */
+    public function targetClassLevel(): BelongsTo
+    {
+        return $this->belongsTo(ClassLevel::class, 'target_class_level_id');
+    }
+
+    /**
+     * Legacy compatibility for old pivot-based consumers.
+     * The refactor now treats examinations as class-level specific, so this
+     * relation is expected to resolve to a single row.
      */
     public function classLevels(): BelongsToMany
     {

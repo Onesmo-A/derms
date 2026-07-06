@@ -61,7 +61,14 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user->hasAnyRole(['Super Administrator', 'District Officer']),
+            $user->hasAnyRole([
+                'Super Administrator',
+                'Regional Education Officer (REO)',
+                'District Education Officer (DEO)',
+                'District Academic Officer',
+                'Head of School',
+                'Academic Master/Mistress',
+            ]),
             403,
             'Unauthorized to view SMS logs.'
         );

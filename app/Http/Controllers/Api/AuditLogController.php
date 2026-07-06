@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditLog;
+use App\Domains\Identity\Models\AuditLog;
 use Illuminate\Http\Request;
 
 class AuditLogController extends Controller

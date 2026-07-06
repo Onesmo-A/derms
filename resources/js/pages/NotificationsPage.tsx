@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 export default function NotificationsPage() {
     const [logs, setLogs] = useState<any[]>([]);
@@ -62,12 +63,19 @@ export default function NotificationsPage() {
                 {activeTab === 'sms' && (
                     <div className="space-y-4 max-w-xl">
                         <h3 className="text-lg font-bold text-gray-900">Send Results via SMS</h3>
-                        <p className="text-sm text-gray-500">Trigger standard Swahili notification alerts containing grades and division summaries to registered parent contact numbers.</p>
+                        <p className="text-sm text-gray-500">Trigger standard English notification alerts containing grades and division summaries for registered parent contact numbers.</p>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700">Select Examination</label>
-                            <select className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                <option>Kinondoni Form Four Mock 2026</option>
-                            </select>
+                            <SearchableSelect
+                                value={''}
+                                onValueChange={() => {}}
+                                placeholder="Select Examination"
+                                searchPlaceholder="Search examination..."
+                                options={[
+                                    { value: 'kinondoni-form-four-mock-2026', label: 'Kinondoni Form Four Mock 2026' },
+                                ]}
+                                className="mt-1"
+                            />
                         </div>
                         <button className="rounded-lg bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0c3c66]">Dispatch Results SMS Queue</button>
                     </div>
@@ -89,9 +97,9 @@ export default function NotificationsPage() {
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-900">Notification Templates</h3>
                         <div className="rounded-xl border p-4 bg-gray-50 max-w-2xl">
-                            <div className="font-bold text-gray-800 text-sm">Swahili SMS Default Results Template:</div>
+                            <div className="font-bold text-gray-800 text-sm">Default SMS Results Template:</div>
                             <p className="mt-2 text-sm font-mono text-gray-600">
-                                "Ndugu Mzazi, matokeo ya mwanao {`{student_name}`} ({`{exam_number}`}) katika {`{exam_name}`} ni DIV {`{division}`} (Pointi {`{points}`}). Wastani: {`{average}`}. Hongera!"
+                                "Dear Parent, your child {`{student_name}`} ({`{exam_number}`}) in {`{exam_name}`} has achieved DIV {`{division}`} (Points {`{points}`}). Average: {`{average}`}. Congratulations!"
                             </p>
                         </div>
                     </div>

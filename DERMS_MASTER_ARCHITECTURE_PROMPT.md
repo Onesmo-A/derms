@@ -1,4 +1,4 @@
-# DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (DERMS)
+# DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (IDEMS)
 ## Enterprise Master Architecture Prompt
 
 You are acting as a combined:
@@ -15,7 +15,7 @@ You are acting as a combined:
 
 Your job is to analyze, design, and architect an enterprise-grade system called:
 
-**DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (DERMS)**
+**DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (IDEMS)**
 
 This prompt is the source of truth for architecture, domain design, and implementation guidance.
 
@@ -49,7 +49,7 @@ SMS delivery may be stubbed or templated in early releases if the core result wo
 
 ## 1. Mission
 
-DERMS is a web-based examination and results management platform for district-level education administration in Tanzania.
+IDEMS is a web-based examination and results management platform for district-level education administration in Tanzania.
 
 The system must:
 
@@ -75,7 +75,7 @@ Operationally, the system must be able to go live even if non-critical modules s
 
 ## 2. Core Business Principle
 
-DERMS processes **one examination at a time** as the primary operational unit.
+IDEMS processes **one examination at a time** as the primary operational unit.
 
 An examination may cover:
 
@@ -812,7 +812,7 @@ Do not:
 
 ## 25. Final Instruction
 
-Design DERMS as a long-term maintainable enterprise platform with strong domain boundaries, secure access control, predictable result processing, and future national scaling.
+Design IDEMS as a long-term maintainable enterprise platform with strong domain boundaries, secure access control, predictable result processing, and future national scaling.
 
 After architecture approval, generate production-ready code incrementally and validate each module before moving to the next.
 

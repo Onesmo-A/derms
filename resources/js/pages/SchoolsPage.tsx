@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useToastFeedback } from '@/hooks/use-toast-feedback';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     School, Plus, Pencil, Trash2, Search, RefreshCw, X, Check,
-    BarChart3, ChartColumn, MapPin, Layers3, Tag, Phone, Mail, Building2
+    BarChart3, ChartColumn, MapPin, Layers3
 } from 'lucide-react';
 
 interface Region { id: string; name: string; code: string; }
@@ -13,11 +15,22 @@ interface SchoolItem {
     registration_number: string;
     type: string;
     level: string;
+    students_count?: number;
+    student_count_cache?: number;
+    enrolment_category?: 'below_40' | '40_and_above';
+    enrolment_category_label?: string;
     phone_number?: string;
     email?: string;
     address?: string;
     district_id: string;
     district?: District;
+}
+
+interface ClassLevel {
+    id: string;
+    name: string;
+    code?: string;
+    numeric_level?: number;
 }
 
 interface SchoolForm {
@@ -45,6 +58,28 @@ const TABS: { id: TabId; label: string; path: string }[] = [
     { id: 'performance', label: 'Performance History', path: '/school-performance-history' },
 ];
 
+const ENROLMENT_BELOW_40 = 'below_40' as const;
+const ENROLMENT_40_AND_ABOVE = '40_and_above' as const;
+
+const getStudentCount = (school: SchoolItem): number => (
+    school.students_count ?? school.student_count_cache ?? 0
+);
+
+const getSchoolCategory = (school: SchoolItem): 'below_40' | '40_and_above' => (
+    school.enrolment_category ?? (getStudentCount(school) < 40 ? ENROLMENT_BELOW_40 : ENROLMENT_40_AND_ABOVE)
+);
+
+const getSchoolCategoryLabel = (school: SchoolItem): string => (
+    school.enrolment_category_label
+    ?? (getSchoolCategory(school) === ENROLMENT_40_AND_ABOVE ? '40 and above' : 'Below 40')
+);
+
+const getSchoolCategoryClasses = (school: SchoolItem): string => (
+    getSchoolCategory(school) === ENROLMENT_40_AND_ABOVE
+        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
+        : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200'
+);
+
 export default function SchoolsPage() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -52,6 +87,7 @@ export default function SchoolsPage() {
     const [schools, setSchools] = useState<SchoolItem[]>([]);
     const [regions, setRegions] = useState<Region[]>([]);
     const [districts, setDistricts] = useState<District[]>([]);
+    const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
     const [filteredDistricts, setFilteredDistricts] = useState<District[]>([]);
 
     const [loading, setLoading] = useState(true);
@@ -62,6 +98,7 @@ export default function SchoolsPage() {
     const [filterRegion, setFilterRegion] = useState('');
     const [filterDistrict, setFilterDistrict] = useState('');
     const [filterType, setFilterType] = useState('');
+    const [filterCategory, setFilterCategory] = useState('');
 
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -72,7 +109,14 @@ export default function SchoolsPage() {
     const [form, setForm] = useState<SchoolForm>(emptyForm);
     const [formErrors, setFormErrors] = useState<Partial<SchoolForm>>({});
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-    const [expandedSchool, setExpandedSchool] = useState<string | null>(null);
+    const prevRegionRef = useRef(filterRegion);
+
+    useToastFeedback({
+        error,
+        success,
+        clearError: () => setError(''),
+        clearSuccess: () => setSuccess(''),
+    });
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -91,11 +135,17 @@ export default function SchoolsPage() {
     useEffect(() => {
         if (filterRegion) {
             setFilteredDistricts(districts.filter(d => d.region_id === filterRegion));
-            setFilterDistrict('');
         } else {
             setFilteredDistricts(districts);
         }
     }, [filterRegion, districts]);
+
+    useEffect(() => {
+        if (prevRegionRef.current !== filterRegion) {
+            setFilterDistrict('');
+            prevRegionRef.current = filterRegion;
+        }
+    }, [filterRegion]);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -104,16 +154,20 @@ export default function SchoolsPage() {
                 fetch('/api/v1/regions', { headers }),
                 fetch('/api/v1/districts', { headers }),
             ]);
+            const classRes = await fetch('/api/v1/class-levels', { headers });
             const regData = await regRes.json();
             const distData = await distRes.json();
+            const classData = await classRes.json();
             setRegions(Array.isArray(regData) ? regData : regData.data || []);
             setDistricts(Array.isArray(distData) ? distData : distData.data || []);
+            setClassLevels(Array.isArray(classData) ? classData : classData.data || []);
 
             const params = new URLSearchParams();
             if (search) params.append('search', search);
             if (filterDistrict) params.append('district_id', filterDistrict);
             if (filterRegion) params.append('region_id', filterRegion);
             if (filterType) params.append('type', filterType);
+            if (filterCategory) params.append('enrolment_category', filterCategory);
             const url = `/api/v1/schools${params.toString() ? '?' + params.toString() : ''}`;
             const schRes = await fetch(url, { headers });
             const schData = await schRes.json();
@@ -123,7 +177,7 @@ export default function SchoolsPage() {
         } finally {
             setLoading(false);
         }
-    }, [search, filterDistrict, filterRegion, filterType]);
+    }, [search, filterDistrict, filterRegion, filterType, filterCategory]);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -215,9 +269,14 @@ export default function SchoolsPage() {
         ? districts.filter(d => d.region_id === formRegion)
         : districts;
 
+    const totalStudents = schools.reduce((sum, school) => sum + getStudentCount(school), 0);
+    const below40Schools = schools.filter(s => getStudentCount(s) < 40).length;
+    const above40Schools = schools.length - below40Schools;
+    const averageStudents = schools.length > 0 ? Math.round(totalStudents / schools.length) : 0;
     const totalGov = schools.filter(s => s.type === 'government').length;
     const totalPrivate = schools.filter(s => s.type === 'private').length;
     const districtsCovered = new Set(schools.map(s => s.district_id)).size;
+    const schoolCategoryRows = [...schools].sort((a, b) => getStudentCount(b) - getStudentCount(a));
 
     return (
         <div className="space-y-6">
@@ -269,9 +328,9 @@ export default function SchoolsPage() {
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                         {[
                             { label: 'Total Schools', value: schools.length, color: 'text-[#0F4C81]', bg: 'bg-blue-50' },
-                            { label: 'Government', value: totalGov, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-                            { label: 'Private', value: totalPrivate, color: 'text-amber-700', bg: 'bg-amber-50' },
-                            { label: 'Districts', value: districtsCovered, color: 'text-purple-700', bg: 'bg-purple-50' },
+                            { label: 'Below 40', value: below40Schools, color: 'text-amber-700', bg: 'bg-amber-50' },
+                            { label: '40 and Above', value: above40Schools, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+                            { label: 'Avg Students', value: averageStudents, color: 'text-purple-700', bg: 'bg-purple-50' },
                         ].map(stat => (
                             <div key={stat.label} className={`rounded-2xl border ${stat.bg} px-5 py-4`}>
                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{stat.label}</p>
@@ -292,31 +351,44 @@ export default function SchoolsPage() {
                                     className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm focus:border-[#0F4C81] focus:outline-none focus:bg-white"
                                 />
                             </div>
-                            <select
+                            <SearchableSelect
                                 value={filterRegion}
-                                onChange={e => setFilterRegion(e.target.value)}
-                                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none"
-                            >
-                                <option value="">All Regions</option>
-                                {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
-                            <select
+                                onValueChange={(value) => setFilterRegion(value)}
+                                placeholder="All Regions"
+                                searchPlaceholder="Search region..."
+                                options={regions.map((r) => ({ value: r.id, label: r.name }))}
+                                className="min-w-[180px]"
+                            />
+                            <SearchableSelect
                                 value={filterDistrict}
-                                onChange={e => setFilterDistrict(e.target.value)}
-                                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none"
-                            >
-                                <option value="">All Districts</option>
-                                {filteredDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                            <select
+                                onValueChange={(value) => setFilterDistrict(value)}
+                                placeholder="All Districts"
+                                searchPlaceholder="Search district..."
+                                options={filteredDistricts.map((d) => ({ value: d.id, label: d.name }))}
+                                className="min-w-[180px]"
+                            />
+                            <SearchableSelect
                                 value={filterType}
-                                onChange={e => setFilterType(e.target.value)}
-                                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none"
-                            >
-                                <option value="">All Types</option>
-                                <option value="government">Government</option>
-                                <option value="private">Private</option>
-                            </select>
+                                onValueChange={(value) => setFilterType(value)}
+                                placeholder="All Types"
+                                searchPlaceholder="Search type..."
+                                options={[
+                                    { value: 'government', label: 'Government' },
+                                    { value: 'private', label: 'Private' },
+                                ]}
+                                className="min-w-[180px]"
+                            />
+                            <SearchableSelect
+                                value={filterCategory}
+                                onValueChange={(value) => setFilterCategory(value)}
+                                placeholder="All Size Bands"
+                                searchPlaceholder="Search size band..."
+                                options={[
+                                    { value: 'below_40', label: 'Below 40' },
+                                    { value: '40_and_above', label: '40 and above' },
+                                ]}
+                                className="min-w-[180px]"
+                            />
                             <button onClick={fetchAll} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">
                                 <RefreshCw className="h-4 w-4" /> Refresh
                             </button>
@@ -327,7 +399,7 @@ export default function SchoolsPage() {
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F4C81] border-t-transparent" />
                             </div>
                         ) : (
-                            <div className="derms-table-wrap rounded-none border-0 shadow-none">
+                            <div className="idems-table-wrap rounded-none border-0 shadow-none">
                                 <table className="min-w-full divide-y divide-gray-100 text-sm">
                                     <thead className="bg-gray-50">
                                         <tr>
@@ -336,13 +408,14 @@ export default function SchoolsPage() {
                                             <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-500">Reg No.</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-500">District / Region</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-500">Type</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-500">Enrollment</th>
                                             <th className="px-6 py-3 text-right text-xs font-semibold uppercase text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {schools.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="py-16 text-center text-gray-400">
+                                                <td colSpan={7} className="py-16 text-center text-gray-400">
                                                     <School className="mx-auto mb-3 h-10 w-10 opacity-30" />
                                                     No schools found. Register one using the button above.
                                                 </td>
@@ -351,7 +424,7 @@ export default function SchoolsPage() {
                                             <React.Fragment key={school.id}>
                                                 <tr
                                                     className="hover:bg-blue-50/30 transition cursor-pointer"
-                                                    onClick={() => setExpandedSchool(expandedSchool === school.id ? null : school.id)}
+                                                    onClick={() => navigate(`/schools/${school.id}`)}
                                                 >
                                                     <td className="px-6 py-4 text-gray-400 font-mono text-xs">{idx + 1}</td>
                                                     <td className="px-6 py-4 font-semibold text-gray-900">{school.name}</td>
@@ -373,6 +446,14 @@ export default function SchoolsPage() {
                                                             {school.type}
                                                         </span>
                                                     </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-sm font-semibold text-gray-900">{getStudentCount(school)}</span>
+                                                            <span className={`inline-flex w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${getSchoolCategoryClasses(school)}`}>
+                                                                {getSchoolCategoryLabel(school)}
+                                                            </span>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                                                         <div className="flex justify-end gap-2">
                                                             <button
@@ -392,37 +473,6 @@ export default function SchoolsPage() {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {/* Expanded row */}
-                                                {expandedSchool === school.id && (
-                                                    <tr className="bg-blue-50/40">
-                                                        <td colSpan={6} className="px-8 py-4">
-                                                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs text-gray-600">
-                                                                {school.phone_number && (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Phone className="h-3.5 w-3.5 text-gray-400" />
-                                                                        {school.phone_number}
-                                                                    </div>
-                                                                )}
-                                                                {school.email && (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Mail className="h-3.5 w-3.5 text-gray-400" />
-                                                                        {school.email}
-                                                                    </div>
-                                                                )}
-                                                                {school.address && (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                                                                        {school.address}
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex items-center gap-2">
-                                                                    <Tag className="h-3.5 w-3.5 text-gray-400" />
-                                                                    Level: <span className="font-semibold capitalize">{school.level}</span>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
                                             </React.Fragment>
                                         ))}
                                     </tbody>
@@ -435,21 +485,122 @@ export default function SchoolsPage() {
 
             {/* CATEGORIES TAB */}
             {activeTab === 'categories' && (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-                    <h3 className="text-lg font-bold text-gray-900">School Category Breakdown</h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Enrollment Size Categories</h3>
+                            <p className="mt-1 text-sm text-gray-500">
+                                Schools are grouped by current registered students. Schools with exactly 40 students are counted in the 40 and above band.
+                            </p>
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                            <School className="h-4 w-4 text-[#0F4C81]" />
+                            {schools.length} schools loaded
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         {[
-                            { label: 'Government Secondary', count: schools.filter(s => s.type === 'government' && s.level === 'secondary').length, color: 'bg-green-100 text-green-800' },
-                            { label: 'Private Secondary', count: schools.filter(s => s.type === 'private' && s.level === 'secondary').length, color: 'bg-yellow-100 text-yellow-800' },
-                            { label: 'Government Primary', count: schools.filter(s => s.type === 'government' && s.level === 'primary').length, color: 'bg-blue-100 text-blue-800' },
-                            { label: 'Private Primary', count: schools.filter(s => s.type === 'private' && s.level === 'primary').length, color: 'bg-purple-100 text-purple-800' },
-                        ].map(cat => (
-                            <div key={cat.label} className="rounded-2xl border p-5">
-                                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${cat.color}`}>{cat.label}</span>
-                                <p className="mt-3 text-3xl font-extrabold text-gray-900">{cat.count}</p>
-                                <p className="text-xs text-gray-500 mt-0.5">schools</p>
+                            {
+                                label: 'Below 40',
+                                count: below40Schools,
+                                hint: 'Smaller schools that are still below the threshold.',
+                                tone: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+                            },
+                            {
+                                label: '40 and Above',
+                                count: above40Schools,
+                                hint: 'Schools that have reached the threshold or beyond.',
+                                tone: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200',
+                            },
+                            {
+                                label: 'Total Students',
+                                count: totalStudents,
+                                hint: 'Combined student count for the current school set.',
+                                tone: 'bg-blue-50 text-blue-800 ring-1 ring-blue-200',
+                            },
+                            {
+                                label: 'Average per School',
+                                count: averageStudents,
+                                hint: 'Rounded average students per school.',
+                                tone: 'bg-purple-50 text-purple-800 ring-1 ring-purple-200',
+                            },
+                        ].map(card => (
+                            <div key={card.label} className={`rounded-2xl p-5 ${card.tone}`}>
+                                <p className="text-xs font-semibold uppercase tracking-wide opacity-75">{card.label}</p>
+                                <p className="mt-3 text-4xl font-extrabold">{card.count}</p>
+                                <p className="mt-2 text-xs opacity-75">{card.hint}</p>
                             </div>
                         ))}
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                        <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <span>Distribution</span>
+                            <span>{schools.length > 0 ? Math.round((below40Schools / schools.length) * 100) : 0}% below 40</span>
+                        </div>
+                        <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-gray-200">
+                            <div
+                                className="bg-amber-500 transition-all"
+                                style={{ width: `${schools.length > 0 ? (below40Schools / schools.length) * 100 : 0}%` }}
+                            />
+                            <div
+                                className="bg-emerald-500 transition-all"
+                                style={{ width: `${schools.length > 0 ? (above40Schools / schools.length) * 100 : 0}%` }}
+                            />
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+                                <div className="font-semibold">Below 40</div>
+                                <div className="text-xs text-amber-700">{below40Schools} schools in this band.</div>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+                                <div className="font-semibold">40 and Above</div>
+                                <div className="text-xs text-emerald-700">{above40Schools} schools in this band.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+                            <h4 className="text-sm font-bold text-gray-800">Schools by Enrollment Size</h4>
+                            <span className="text-xs font-medium text-gray-500">Sorted by student count, highest first</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-100 text-sm">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">School</th>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">District</th>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Students</th>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Band</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 bg-white">
+                                    {schoolCategoryRows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-5 py-10 text-center text-gray-400">
+                                                No schools available for category analysis.
+                                            </td>
+                                        </tr>
+                                    ) : schoolCategoryRows.map(school => (
+                                        <tr key={school.id} className="hover:bg-gray-50/80">
+                                            <td className="px-5 py-3">
+                                                <div className="font-semibold text-gray-900">{school.name}</div>
+                                                <div className="text-xs text-gray-500">{school.registration_number}</div>
+                                            </td>
+                                            <td className="px-5 py-3 text-gray-600">{school.district?.name ?? '—'}</td>
+                                            <td className="px-5 py-3 text-gray-900 font-semibold">{getStudentCount(school)}</td>
+                                            <td className="px-5 py-3">
+                                                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getSchoolCategoryClasses(school)}`}>
+                                                    {getSchoolCategoryLabel(school)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -461,7 +612,7 @@ export default function SchoolsPage() {
                         <BarChart3 className="h-6 w-6 text-[#0F4C81]" />
                         <h3 className="text-lg font-bold text-gray-900">School Statistics</h3>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
                         <div className="rounded-xl bg-blue-50 p-5">
                             <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Total Schools</p>
                             <p className="mt-1 text-4xl font-extrabold text-[#0F4C81]">{schools.length}</p>
@@ -475,6 +626,11 @@ export default function SchoolsPage() {
                             <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Private</p>
                             <p className="mt-1 text-4xl font-extrabold text-amber-700">{totalPrivate}</p>
                             <p className="text-xs text-amber-600 mt-1">{schools.length > 0 ? Math.round((totalPrivate / schools.length) * 100) : 0}% of total</p>
+                        </div>
+                        <div className="rounded-xl bg-purple-50 p-5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-purple-600">Districts Covered</p>
+                            <p className="mt-1 text-4xl font-extrabold text-purple-700">{districtsCovered}</p>
+                            <p className="text-xs text-purple-600 mt-1">districts with at least one school</p>
                         </div>
                     </div>
 
@@ -565,7 +721,7 @@ export default function SchoolsPage() {
                                     <label className="block text-sm font-semibold text-gray-700">Registration No. <span className="text-red-500">*</span></label>
                                     <input
                                         value={form.registration_number}
-                                        onChange={e => setForm(f => ({ ...f, registration_number: e.target.value }))}
+                                        onChange={e => setForm(f => ({ ...f, registration_number: e.target.value.toUpperCase() }))}
                                         type="text"
                                         placeholder="e.g. S0102"
                                         className={`mt-1 block w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none ${formErrors.registration_number ? 'border-red-400' : 'border-gray-300'}`}
@@ -574,45 +730,62 @@ export default function SchoolsPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700">Ownership</label>
-                                    <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none">
-                                        <option value="government">Government</option>
-                                        <option value="private">Private</option>
-                                    </select>
+                                    <SearchableSelect
+                                        value={form.type}
+                                        onValueChange={(value) => setForm(f => ({ ...f, type: value }))}
+                                        placeholder="Select ownership"
+                                        searchPlaceholder="Search ownership..."
+                                        options={[
+                                            { value: 'government', label: 'Government' },
+                                            { value: 'private', label: 'Private' },
+                                        ]}
+                                        className="mt-1"
+                                    />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700">Region</label>
-                                    <select
+                                    <SearchableSelect
                                         value={formRegion}
-                                        onChange={e => { setFormRegion(e.target.value); setForm(f => ({ ...f, district_id: '' })); }}
-                                        className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none"
-                                    >
-                                        <option value="">Select Region</option>
-                                        {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                    </select>
+                                        onValueChange={(value) => {
+                                            setFormRegion(value);
+                                            setForm(f => ({ ...f, district_id: '' }));
+                                        }}
+                                        placeholder="Select region"
+                                        searchPlaceholder="Search region..."
+                                        options={regions.map((r) => ({ value: r.id, label: r.name }))}
+                                        className="mt-1"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700">District <span className="text-red-500">*</span></label>
-                                    <select
+                                    <SearchableSelect
                                         value={form.district_id}
-                                        onChange={e => setForm(f => ({ ...f, district_id: e.target.value }))}
-                                        className={`mt-1 block w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none ${formErrors.district_id ? 'border-red-400' : 'border-gray-300'}`}
-                                    >
-                                        <option value="">Select District</option>
-                                        {formDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                    </select>
+                                        onValueChange={(value) => setForm(f => ({ ...f, district_id: value }))}
+                                        placeholder="Select district"
+                                        searchPlaceholder="Search district..."
+                                        options={formDistricts.map((d) => ({ value: d.id, label: d.name }))}
+                                        className={`mt-1 ${formErrors.district_id ? 'ring-1 ring-red-400 rounded-xl' : ''}`}
+                                    />
                                     {formErrors.district_id && <p className="mt-1 text-xs text-red-600">{formErrors.district_id}</p>}
                                 </div>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700">Level</label>
-                                <select value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none">
-                                    <option value="secondary">Secondary</option>
-                                    <option value="primary">Primary</option>
-                                </select>
+                                <SearchableSelect
+                                    value={form.level}
+                                    onValueChange={(value) => setForm(f => ({ ...f, level: value }))}
+                                    placeholder="Select level"
+                                    searchPlaceholder="Search level..."
+                                    options={[
+                                        { value: 'secondary', label: 'Secondary' },
+                                        { value: 'primary', label: 'Primary' },
+                                    ]}
+                                    className="mt-1"
+                                />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

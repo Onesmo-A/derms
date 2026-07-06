@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -14,6 +16,67 @@ import {
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import type { NavItem } from '@/types';
 
+type NavGroupProps = {
+    item: NavItem;
+    level: number;
+    isActive: boolean;
+    renderItems: (navItems: NavItem[], level?: number) => ReactNode;
+};
+
+function NavGroup({ item, level, isActive, renderItems }: NavGroupProps) {
+    const { currentUrl } = useCurrentUrl();
+    const [manualOpen, setManualOpen] = useState(false);
+    const open = isActive || manualOpen;
+
+    useEffect(() => {
+        if (!isActive) {
+            setManualOpen(false);
+        }
+    }, [currentUrl, isActive]);
+
+    const menuButton = (
+        <SidebarMenuButton
+            asChild
+            isActive={isActive}
+            tooltip={{ children: item.title }}
+            className={level > 0 ? 'h-9 text-[13px]' : undefined}
+        >
+            <button type="button" className="w-full">
+                {item.icon && <item.icon />}
+                <span>{item.title}</span>
+                <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+            </button>
+        </SidebarMenuButton>
+    );
+
+    return (
+        <Collapsible
+            open={open}
+            onOpenChange={(value) => {
+                if (!isActive) {
+                    setManualOpen(value);
+                }
+            }}
+            className="group/collapsible"
+        >
+            <SidebarMenuItem>
+                <CollapsibleTrigger asChild>{menuButton}</CollapsibleTrigger>
+                <CollapsibleContent>
+                    {level === 0 ? (
+                        <SidebarMenuSub>
+                            {renderItems(item.children ?? [], level + 1)}
+                        </SidebarMenuSub>
+                    ) : (
+                        <SidebarMenuSub className="border-sidebar-border ml-2">
+                            {renderItems(item.children ?? [], level + 1)}
+                        </SidebarMenuSub>
+                    )}
+                </CollapsibleContent>
+            </SidebarMenuItem>
+        </Collapsible>
+    );
+}
+
 export function NavMain({ items = [] }: { items: NavItem[] }) {
     const { isCurrentUrl } = useCurrentUrl();
 
@@ -29,41 +92,16 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
         navItems.map((item) => {
             const hasChildren = Boolean(item.children?.length);
             const isActive = item.href ? isCurrentUrl(item.href) : hasActiveDescendant(item);
-            const defaultOpen = Boolean(level === 0 && hasChildren && hasActiveDescendant(item));
 
             if (hasChildren) {
-                const menuButton = (
-                    <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={{ children: item.title }}
-                        className={level > 0 ? 'h-9 text-[13px]' : undefined}
-                    >
-                        <button type="button" className="w-full">
-                            {item.icon && <item.icon />}
-                            <span>{item.title}</span>
-                            <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
-                        </button>
-                    </SidebarMenuButton>
-                );
-
                 return (
-                    <Collapsible key={item.title} defaultOpen={defaultOpen} className="group/collapsible">
-                        <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>{menuButton}</CollapsibleTrigger>
-                            <CollapsibleContent>
-                                {level === 0 ? (
-                                    <SidebarMenuSub>
-                                        {renderItems(item.children ?? [], level + 1)}
-                                    </SidebarMenuSub>
-                                ) : (
-                                    <SidebarMenuSub className="border-sidebar-border ml-2">
-                                        {renderItems(item.children ?? [], level + 1)}
-                                    </SidebarMenuSub>
-                                )}
-                            </CollapsibleContent>
-                        </SidebarMenuItem>
-                    </Collapsible>
+                    <NavGroup
+                        key={item.title}
+                        item={item}
+                        level={level}
+                        isActive={isActive}
+                        renderItems={renderItems}
+                    />
                 );
             }
 

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useToastFeedback } from '@/hooks/use-toast-feedback';
 
 export default function AiPage() {
     const location = useLocation();
@@ -18,6 +20,11 @@ export default function AiPage() {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState('');
+
+    useToastFeedback({
+        error,
+        clearError: () => setError(''),
+    });
 
     const token = localStorage.getItem('token');
     const headers = {
@@ -151,24 +158,36 @@ export default function AiPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
                     <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase">Select Examination</label>
-                        <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">Select Exam</option>
-                            {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selectedExam}
+                            onValueChange={setSelectedExam}
+                            placeholder="Select Exam"
+                            searchPlaceholder="Search exam..."
+                            options={exams.map(e => ({ value: e.id, label: e.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase">Select Class Level</label>
-                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">Select Class</option>
-                            {classLevels.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selectedClass}
+                            onValueChange={setSelectedClass}
+                            placeholder="Select Class"
+                            searchPlaceholder="Search class..."
+                            options={classLevels.map(cl => ({ value: cl.id, label: cl.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase">Select School (Optional)</label>
-                        <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">All Schools</option>
-                            {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selectedSchool}
+                            onValueChange={setSelectedSchool}
+                            placeholder="All Schools"
+                            searchPlaceholder="Search school..."
+                            options={schools.map(s => ({ value: s.id, label: s.name }))}
+                            className="mt-1"
+                        />
                     </div>
                 </div>
 

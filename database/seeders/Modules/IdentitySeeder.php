@@ -163,7 +163,7 @@ class IdentitySeeder extends Seeder
 
         // 1. Super Administrator
         $superAdmin = User::firstOrCreate(
-            ['email' => 'admin@derms.go.tz'],
+            ['email' => 'admin@idems.go.tz'],
             [
                 'id'         => (string) Str::uuid(),
                 'first_name' => 'System',
@@ -178,7 +178,7 @@ class IdentitySeeder extends Seeder
         // 2. Regional Education Officer (REO)
         if ($dar) {
             $reo = User::firstOrCreate(
-                ['email' => 'reo.dar@derms.go.tz'],
+                ['email' => 'reo.dar@idems.go.tz'],
                 [
                     'id'         => (string) Str::uuid(),
                     'first_name' => 'Regional Officer',
@@ -195,7 +195,7 @@ class IdentitySeeder extends Seeder
         // 3. District Education Officer (DEO)
         if ($kinondoni) {
             $deo = User::firstOrCreate(
-                ['email' => 'deo.kinondoni@derms.go.tz'],
+                ['email' => 'deo.kinondoni@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'District Officer',
@@ -213,7 +213,7 @@ class IdentitySeeder extends Seeder
         // 4. District Academic Officer
         if ($kinondoni) {
             $dao = User::firstOrCreate(
-                ['email' => 'academic.kinondoni@derms.go.tz'],
+                ['email' => 'academic.kinondoni@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'District Academic',
@@ -231,7 +231,7 @@ class IdentitySeeder extends Seeder
         // 5. Head of School
         if ($kinondoniSec) {
             $hos = User::firstOrCreate(
-                ['email' => 'head.kinondoni@derms.go.tz'],
+                ['email' => 'head.kinondoni@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'Head of School',
@@ -250,7 +250,7 @@ class IdentitySeeder extends Seeder
         // 6. Academic Master/Mistress
         if ($kinondoniSec) {
             $academicMaster = User::firstOrCreate(
-                ['email' => 'academic.school@derms.go.tz'],
+                ['email' => 'academic.school@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'Academic Master',
@@ -269,7 +269,7 @@ class IdentitySeeder extends Seeder
         // 7. Subject Teacher
         if ($kinondoniSec) {
             $teacher = User::firstOrCreate(
-                ['email' => 'teacher.math@derms.go.tz'],
+                ['email' => 'teacher.math@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'Mathematics',
@@ -288,7 +288,7 @@ class IdentitySeeder extends Seeder
         // 8. Student
         if ($kinondoniSec) {
             $studentUser = User::firstOrCreate(
-                ['email' => 'student.jane@derms.go.tz'],
+                ['email' => 'student.jane@idems.go.tz'],
                 [
                     'id'          => (string) Str::uuid(),
                     'first_name'  => 'Jane',
@@ -306,7 +306,7 @@ class IdentitySeeder extends Seeder
 
         // 9. Parent
         $parentUser = User::firstOrCreate(
-            ['email' => 'parent.jane@derms.go.tz'],
+            ['email' => 'parent.jane@idems.go.tz'],
             [
                 'id'         => (string) Str::uuid(),
                 'first_name' => 'Richard',

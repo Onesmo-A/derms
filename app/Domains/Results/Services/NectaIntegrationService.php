@@ -126,6 +126,7 @@ class NectaIntegrationService
                 'id' => $examId,
                 'academic_year_id' => $academicYear->id,
                 'examination_type_id' => $examTypeId,
+                'target_class_level_id' => $classLevel->id,
                 'name' => "NECTA {$session->exam_type} {$session->year}",
                 'start_date' => now(),
                 'end_date' => now(),
@@ -155,7 +156,11 @@ class NectaIntegrationService
                 $schoolId = $school ? $school->id : School::first()->id; // Fallback
 
                 // We try matching student by candidate number/exam number or registration number
-                $student = Student::where('registration_number', $raw->candidate_number)->first();
+                $student = Student::where('school_id', $schoolId)
+                    ->where('academic_year_id', $academicYear->id)
+                    ->where('current_class_level_id', $classLevel->id)
+                    ->where('registration_number', $raw->candidate_number)
+                    ->first();
                 if (!$student) {
                     $studentId = Str::uuid()->toString();
                     Student::create([

@@ -26,7 +26,16 @@ class ResultsProcessingService
     public function process(string $examinationId, string $classLevelId): void
     {
         DB::transaction(function () use ($examinationId, $classLevelId): void {
-            Examination::findOrFail($examinationId);
+            $exam = Examination::with('targetClassLevel')->findOrFail($examinationId);
+            $targetClassLevelId = $exam->target_class_level_id ?? $exam->targetClassLevel?->id;
+
+            if (empty($classLevelId)) {
+                $classLevelId = $targetClassLevelId ?? $classLevelId;
+            }
+
+            if ($targetClassLevelId && $targetClassLevelId !== $classLevelId) {
+                throw new \Exception('This examination can only be processed for its target class level.');
+            }
 
             $divisionGrading = GradingSystem::where('class_level_id', $classLevelId)
                 ->where('type', 'division')

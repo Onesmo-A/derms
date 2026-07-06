@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Repositories\Results\EloquentResultsRepository;
 use App\Repositories\Results\ResultsRepositoryInterface;
+use App\Domains\Reporting\Repositories\EloquentReportingRepository;
+use App\Domains\Reporting\Repositories\ReportingRepositoryInterface;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(ResultsRepositoryInterface::class, EloquentResultsRepository::class);
+        $this->app->bind(ReportingRepositoryInterface::class, EloquentReportingRepository::class);
     }
 
     /**

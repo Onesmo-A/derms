@@ -17,4 +17,23 @@ class ClassLevel extends Model
         'name',
         'numeric_level',
     ];
+
+    public function registrationCode(): string
+    {
+        $code = strtoupper(trim((string) ($this->code ?? '')));
+
+        if ($code !== '' && preg_match('/^F\d+$/', $code)) {
+            return $code;
+        }
+
+        if (!empty($this->numeric_level)) {
+            return 'F' . (int) $this->numeric_level;
+        }
+
+        if (preg_match('/FORM\s*(\d+)/i', (string) $this->name, $matches)) {
+            return 'F' . $matches[1];
+        }
+
+        return 'CL';
+    }
 }

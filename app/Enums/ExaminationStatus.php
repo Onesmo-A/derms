@@ -40,22 +40,27 @@ enum ExaminationStatus: string
                 self::Archived->value,
             ],
             self::RegistrationOpen->value => [
+                self::Draft->value,
                 self::RegistrationClosed->value,
                 self::Archived->value,
             ],
             self::RegistrationClosed->value => [
+                self::RegistrationOpen->value,
                 self::MarksEntryOpen->value,
                 self::Archived->value,
             ],
             self::MarksEntryOpen->value => [
+                self::RegistrationClosed->value,
                 self::Processing->value,
                 self::Archived->value,
             ],
             self::Processing->value => [
+                self::MarksEntryOpen->value,
                 self::Processed->value,
                 self::Archived->value,
             ],
             self::Processed->value => [
+                self::Processing->value,
                 self::Published->value,
                 self::Closed->value,
             ],
@@ -65,6 +70,7 @@ enum ExaminationStatus: string
                 self::Archived->value,
             ],
             self::Closed->value => [
+                self::Published->value,
                 self::Archived->value,
             ],
             self::Archived->value => [],

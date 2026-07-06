@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from 'sonner';
 import { 
     DatabaseZap, 
@@ -484,36 +485,38 @@ export default function ResultsPage() {
                             <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border">
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Source System</label>
-                                    <select 
+                                    <SearchableSelect
                                         value={source}
-                                        onChange={(e) => {
-                                            setSource(e.target.value);
+                                        onValueChange={(value) => {
+                                            setSource(value);
                                             setSelectedYear('');
                                             setCentres([]);
                                         }}
-                                        className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
-                                    >
-                                        <option value="NECTA">NECTA Portal (Tanzania)</option>
-                                        <option value="CAMBRIDGE">Cambridge Plugins (Stub)</option>
-                                        <option value="EXCEL">Excel spreadsheet Importer (Stub)</option>
-                                    </select>
+                                        placeholder="Select Source System"
+                                        searchPlaceholder="Search source..."
+                                        options={[
+                                            { value: 'NECTA', label: 'NECTA Portal (Tanzania)' },
+                                            { value: 'CAMBRIDGE', label: 'Cambridge Plugins (Stub)' },
+                                            { value: 'EXCEL', label: 'Excel spreadsheet Importer (Stub)' },
+                                        ]}
+                                        className="mt-1"
+                                    />
                                 </div>
 
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Exam Classification</label>
-                                    <select 
+                                    <SearchableSelect
                                         value={examType}
-                                        onChange={(e) => {
-                                            setExamType(e.target.value);
+                                        onValueChange={(value) => {
+                                            setExamType(value);
                                             setSelectedYear('');
                                             setCentres([]);
                                         }}
-                                        className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
-                                    >
-                                        {['CSEE', 'ACSEE', 'FTNA', 'SFNA', 'PSLE'].map(t => (
-                                            <option key={t} value={t}>{t}</option>
-                                        ))}
-                                    </select>
+                                        placeholder="Select Exam Type"
+                                        searchPlaceholder="Search exam type..."
+                                        options={['CSEE', 'ACSEE', 'FTNA', 'SFNA', 'PSLE'].map(t => ({ value: t, label: t }))}
+                                        className="mt-1"
+                                    />
                                 </div>
 
                                 <div>
@@ -524,16 +527,14 @@ export default function ResultsPage() {
                                             Discovering published years...
                                         </div>
                                     ) : (
-                                        <select 
-                                            value={selectedYear}
-                                            onChange={(e) => setSelectedYear(e.target.value ? Number(e.target.value) : '')}
-                                            className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
-                                        >
-                                            <option value="">Select Year</option>
-                                            {years.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
+                                        <SearchableSelect
+                                            value={selectedYear === '' ? '' : String(selectedYear)}
+                                            onValueChange={(value) => setSelectedYear(value ? Number(value) : '')}
+                                            placeholder="Select Year"
+                                            searchPlaceholder="Search year..."
+                                            options={years.map(y => ({ value: String(y), label: String(y) }))}
+                                            className="mt-1"
+                                        />
                                     )}
                                 </div>
 
@@ -638,16 +639,17 @@ export default function ResultsPage() {
                                 <p className="text-xs text-gray-500 font-semibold">Inspect and resolve warnings in staging before promoting to production records.</p>
                             </div>
                             <div className="flex gap-2">
-                                <select 
+                                <SearchableSelect
                                     value={selectedSessionId}
-                                    onChange={(e) => setSelectedSessionId(e.target.value)}
-                                    className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold"
-                                >
-                                    <option value="">Select Import Session</option>
-                                    {sessions.filter(s => s.status !== 'promoted').map(s => (
-                                        <option key={s.id} value={s.id}>{s.source_system} - {s.exam_type} ({s.year})</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setSelectedSessionId}
+                                    placeholder="Select Import Session"
+                                    searchPlaceholder="Search session..."
+                                    options={sessions.filter(s => s.status !== 'promoted').map(s => ({
+                                        value: s.id,
+                                        label: `${s.source_system} - ${s.exam_type} (${s.year})`,
+                                    }))}
+                                    className="min-w-[240px]"
+                                />
                             </div>
                         </div>
 
@@ -769,16 +771,17 @@ export default function ResultsPage() {
                                 <p className="text-xs text-gray-500 font-semibold">Grade and points deviations report checker.</p>
                             </div>
                             <div className="flex gap-2">
-                                <select 
+                                <SearchableSelect
                                     value={selectedSessionId}
-                                    onChange={(e) => setSelectedSessionId(e.target.value)}
-                                    className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold"
-                                >
-                                    <option value="">Select Import Session</option>
-                                    {sessions.map(s => (
-                                        <option key={s.id} value={s.id}>{s.source_system} - {s.exam_type} ({s.year})</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setSelectedSessionId}
+                                    placeholder="Select Import Session"
+                                    searchPlaceholder="Search session..."
+                                    options={sessions.map(s => ({
+                                        value: s.id,
+                                        label: `${s.source_system} - ${s.exam_type} (${s.year})`,
+                                    }))}
+                                    className="min-w-[240px]"
+                                />
                                 <button 
                                     disabled={!selectedSessionId || loadingComparison}
                                     onClick={() => runComparisonAnalysis(selectedSessionId)}
@@ -1014,5 +1017,3 @@ export default function ResultsPage() {
         </div>
     );
 }
-
-

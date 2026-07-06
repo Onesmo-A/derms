@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, Search, Sliders, CheckCircle, AlertTriangle, FileSpreadsheet, Edit3, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SubjectConfig {
     examination_subject_id: string;
@@ -64,6 +66,8 @@ export default function MarksEntryPage() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'spreadsheet' | 'manual' | 'import' | 'bulk' | 'verify' | 'practical'>('spreadsheet');
+    const paper1Refs = useRef<Array<HTMLInputElement | null>>([]);
+    const paper2Refs = useRef<Array<HTMLInputElement | null>>([]);
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -198,7 +202,9 @@ export default function MarksEntryPage() {
 
     const handleLoadGrid = async () => {
         if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
-            setError('Tafadhali chagua Mkoa, Wilaya, Shule, Somo na Darasa.');
+            const message = 'Please select a region, district, school, subject, and class level.';
+            setError(message);
+            toast.error(message);
             return;
         }
 
@@ -215,18 +221,15 @@ export default function MarksEntryPage() {
 
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
-                throw new Error(body.message || `Imeshindwa kupakia grid (HTTP ${res.status})`);
+                throw new Error(body.message || `Failed to load roster grid (HTTP ${res.status}).`);
             }
 
             const data: { subject_config: SubjectConfig; candidates: CandidateRow[] } = await res.json();
             setSubjectConfig(data.subject_config);
-            
-            // Filter candidates of the selected school if not filtered on backend
-            const filteredCandidates = data.candidates;
-            setCandidates(filteredCandidates);
+            setCandidates(data.candidates ?? []);
 
             const init: { [k: string]: MarksEntry } = {};
-            filteredCandidates.forEach(c => {
+            (data.candidates ?? []).forEach(c => {
                 init[c.examination_registration_id] = {
                     paper1: c.paper_one_score !== null ? String(c.paper_one_score) : '',
                     paper2: c.paper_two_score !== null ? String(c.paper_two_score) : '',
@@ -234,19 +237,13 @@ export default function MarksEntryPage() {
                 };
             });
             setMarksData(init);
-
         } catch (err: any) {
-            setError(err.message || 'Imeshindwa kupakia orodha ya wanafunzi.');
+            const message = err.message || 'Failed to load the candidate list.';
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleCellChange = (regId: string, field: 'paper1' | 'paper2' | 'absent', value: string | boolean) => {
-        setMarksData(prev => ({
-            ...prev,
-            [regId]: { ...prev[regId], [field]: value },
-        }));
     };
 
     const handleSaveMarks = async () => {
@@ -286,13 +283,17 @@ export default function MarksEntryPage() {
                     const msgs = Object.values(body.errors).flat().join(' • ');
                     throw new Error(msgs);
                 }
-                throw new Error(body.message || 'Imeshindwa kuhifadhi alama.');
+                throw new Error(body.message || 'Failed to save marks.');
             }
 
-            setMessage(`✔ ${body.message || 'Alama zimehifadhiwa kwa mafanikio.'}`);
+            const successMessage = body.message || 'Marks saved successfully.';
+            setMessage(successMessage);
+            toast.success(successMessage);
             handleLoadGrid();
         } catch (err: any) {
-            setError(err.message);
+            const message = err.message || 'Failed to save marks.';
+            setError(message);
+            toast.error(message);
         } finally {
             setSaving(false);
         }
@@ -312,63 +313,107 @@ export default function MarksEntryPage() {
     const paper1Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_one_weight / 100)) : 100;
     const paper2Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_two_weight / 100)) : 50;
 
+    const focusSpreadsheetCell = (field: 'paper1' | 'paper2', rowIndex: number) => {
+        const target = field === 'paper1' ? paper1Refs.current[rowIndex] : paper2Refs.current[rowIndex];
+        if (target) {
+            target.focus();
+            target.select();
+        }
+    };
+
+    const handleSpreadsheetKeyDown = (
+        event: React.KeyboardEvent<HTMLInputElement>,
+        rowIndex: number,
+        field: 'paper1' | 'paper2'
+    ) => {
+        if (event.key !== 'ArrowDown') return;
+
+        event.preventDefault();
+        const nextIndex = rowIndex + 1;
+        if (nextIndex < candidates.length) {
+            focusSpreadsheetCell(field, nextIndex);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">Marks Management</h1>
-                <p className="mt-1 text-sm text-gray-500">Record mock scores, import sheets, or verify entered marks sheets.</p>
+                <p className="mt-1 text-sm text-gray-500">Record mock scores, import sheets, or verify entered mark sheets.</p>
             </div>
 
             {/* ─── GLOBAL CONTEXT FILTERS ──────────────────────────────────── */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
                     <Sliders className="h-4 w-4 text-[#0F4C81]" />
-                    Context Hierarchy Filter (Mikoa -{'>'} Wilaya -{'>'} Shule)
+                    Context Hierarchy Filter (Region {'->'} District {'->'} School)
                 </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">1. Region / Mkoa</label>
-                        <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select Region</option>
-                            {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                        </select>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">1. Region</label>
+                        <SearchableSelect
+                            value={selectedRegion}
+                            onValueChange={setSelectedRegion}
+                            placeholder="Select Region"
+                            searchPlaceholder="Search region..."
+                            options={regions.map(r => ({ value: r.id, label: r.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">2. District / Wilaya</label>
-                        <select value={selectedDistrict} onChange={e => setSelectedDistrict(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select District</option>
-                            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">2. District</label>
+                        <SearchableSelect
+                            value={selectedDistrict}
+                            onValueChange={setSelectedDistrict}
+                            placeholder="Select District"
+                            searchPlaceholder="Search district..."
+                            options={districts.map(d => ({ value: d.id, label: d.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">3. School / Shule</label>
-                        <select value={selectedSchool} onChange={e => setSelectedSchool(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select School</option>
-                            {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">3. School</label>
+                        <SearchableSelect
+                            value={selectedSchool}
+                            onValueChange={setSelectedSchool}
+                            placeholder="Select School"
+                            searchPlaceholder="Search school..."
+                            options={schools.map(s => ({ value: s.id, label: s.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">4. Examination</label>
-                        <select value={selectedExam} onChange={e => setSelectedExam(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select Exam</option>
-                            {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selectedExam}
+                            onValueChange={setSelectedExam}
+                            placeholder="Select Exam"
+                            searchPlaceholder="Search exam..."
+                            options={exams.map(e => ({ value: e.id, label: e.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">5. Subject</label>
-                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select Subject</option>
-                            {examSubjects.map(s => (
-                                <option key={s.subject_id} value={s.subject_id}>{s.name} ({s.code})</option>
-                            ))}
-                        </select>
+                        <SearchableSelect
+                            value={selectedSubject}
+                            onValueChange={setSelectedSubject}
+                            placeholder="Select Subject"
+                            searchPlaceholder="Search subject..."
+                            options={examSubjects.map(s => ({ value: s.subject_id, label: `${s.name} (${s.code})` }))}
+                            className="mt-1"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">6. Class Level</label>
-                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0F4C81]">
-                            <option value="">Select Class</option>
-                            {classLevels.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selectedClass}
+                            onValueChange={setSelectedClass}
+                            placeholder="Select Class"
+                            searchPlaceholder="Search class..."
+                            options={classLevels.map(cl => ({ value: cl.id, label: cl.name }))}
+                            className="mt-1"
+                        />
                     </div>
                 </div>
             </div>
@@ -397,13 +442,13 @@ export default function MarksEntryPage() {
                                 disabled={loading}
                                 className="rounded-xl bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0a3a66] disabled:opacity-60 transition"
                             >
-                                {loading ? 'Inapakia...' : 'Load Roster Grid'}
+                                {loading ? 'Loading...' : 'Load Roster Grid'}
                             </button>
                         </div>
 
                         {error && (
                             <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-xs font-bold text-red-700">
-                                <strong>Kosa:</strong> {error}
+                                <strong>Error:</strong> {error}
                             </div>
                         )}
                         {message && (
@@ -452,32 +497,67 @@ export default function MarksEntryPage() {
                                                 const p1 = !isAbsent && entry?.paper1 ? parseFloat(entry.paper1) : 0;
                                                 const p2 = !isAbsent && hasPractical && entry?.paper2 ? parseFloat(entry.paper2) : 0;
                                                 const total = p1 + p2;
+                                                function handleCellChange(
+                                                    examination_registration_id: string,
+                                                    field: 'paper1' | 'paper2' | 'absent',
+                                                    value: string | boolean
+                                                ): void {
+                                                    setMarksData(prev => {
+                                                        const current = prev[examination_registration_id] ?? { paper1: '', paper2: '', absent: false };
+                                                        const updated = { ...current };
+
+                                                        if (field === 'absent') {
+                                                            const absentValue = Boolean(value);
+                                                            updated.absent = absentValue;
+                                                            if (absentValue) {
+                                                                updated.paper1 = '';
+                                                                updated.paper2 = '';
+                                                            }
+                                                        } else {
+                                                            updated[field] = String(value);
+                                                        }
+
+                                                        return {
+                                                            ...prev,
+                                                            [examination_registration_id]: updated,
+                                                        };
+                                                    });
+                                                }
+
                                                 return (
                                                     <tr key={c.examination_registration_id} className={`hover:bg-gray-50 ${isAbsent ? 'opacity-50 bg-rose-50' : ''}`}>
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                                                         <td className="px-4 py-3 font-mono text-xs">{c.exam_number}</td>
                                                         <td className="px-4 py-3">{c.student_name}</td>
-                                                        <td className="px-4 py-3 text-center">
+                                                <td className="px-4 py-3 text-center">
                                                             <input
+                                                                ref={el => { paper1Refs.current[idx] = el; }}
                                                                 disabled={isAbsent}
                                                                 value={entry?.paper1 ?? ''}
-                                                                onChange={e => handleCellChange(c.examination_registration_id, 'paper1', e.target.value)}
-                                                                type="number"
+                                                                onChange={e => handleCellChange(c.examination_registration_id, 'paper1', e.target.value.replace(/[^\d]/g, ''))}
+                                                                onKeyDown={e => handleSpreadsheetKeyDown(e, idx, 'paper1')}
+                                                                type="text"
+                                                                inputMode="numeric"
+                                                                pattern="[0-9]*"
                                                                 min="0"
                                                                 max={paper1Max}
-                                                                className="w-20 rounded border px-2 py-1 text-center outline-none"
+                                                                className="w-20 rounded border px-2 py-1 text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                             />
                                                         </td>
                                                         {hasPractical && (
                                                             <td className="px-4 py-3 text-center">
                                                                 <input
+                                                                    ref={el => { paper2Refs.current[idx] = el; }}
                                                                     disabled={isAbsent}
                                                                     value={entry?.paper2 ?? ''}
-                                                                    onChange={e => handleCellChange(c.examination_registration_id, 'paper2', e.target.value)}
-                                                                    type="number"
+                                                                    onChange={e => handleCellChange(c.examination_registration_id, 'paper2', e.target.value.replace(/[^\d]/g, ''))}
+                                                                    onKeyDown={e => handleSpreadsheetKeyDown(e, idx, 'paper2')}
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    pattern="[0-9]*"
                                                                     min="0"
                                                                     max={paper2Max}
-                                                                    className="w-20 rounded border border-amber-300 px-2 py-1 text-center outline-none"
+                                                                    className="w-20 rounded border border-amber-300 px-2 py-1 text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                                 />
                                                             </td>
                                                         )}
@@ -504,14 +584,14 @@ export default function MarksEntryPage() {
 
                                 <div className="flex items-center justify-between pt-2">
                                     <p className="text-xs text-gray-400 font-semibold">
-                                        Weka alama ya "Absent" kwa wasiotahiniwa kabla ya kuhifadhi sheet.
+                                        Tick for "Absent".
                                     </p>
                                     <button
                                         disabled={saving}
                                         onClick={handleSaveMarks}
                                         className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
                                     >
-                                        {saving ? 'Inahifadhi...' : 'Save Entered Marks'}
+                                        {saving ? 'Saving...' : 'Save Entered Marks'}
                                     </button>
                                 </div>
                             </div>
@@ -519,7 +599,7 @@ export default function MarksEntryPage() {
 
                         {!loading && candidates.length === 0 && !error && (
                             <div className="flex h-32 items-center justify-center text-xs text-gray-400 border border-dashed rounded-2xl font-semibold">
-                                Bonyeze "Load Roster Grid" kuona orodha ya wanafunzi wa shule na somo lililochaguliwa.
+                                Click "Load Roster Grid" to view the students for the selected school and subject.
                             </div>
                         )}
                     </div>
@@ -671,9 +751,9 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
     const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
 
     const handleSubmit = async () => {
-        if (!subjectConfig) { setError('Somo halijapangiliwa kwenye mtihani huu bado.'); return; }
-        if (!selectedStudentReg) { setError('Tafadhali mchagua mwanafunzi.'); return; }
-        if (!paper1 && !absent) { setError('Ingiza alama za Paper 1.'); return; }
+        if (!subjectConfig) { setError('This subject has not been configured for the selected examination yet.'); return; }
+        if (!selectedStudentReg) { setError('Please select a student.'); return; }
+        if (!paper1 && !absent) { setError('Enter Paper 1 marks.'); return; }
 
         setSaving(true);
         setError('');
@@ -695,15 +775,17 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
             });
 
             const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.message || 'Imeshindwa kuhifadhi.');
+            if (!res.ok) throw new Error(body.message || 'Failed to save marks.');
 
-            setMessage(`✔ Alama zimehifadhiwa kwa mafanikio.`);
+            setMessage(`✔ Marks stored successfully.`);
             setSelectedStudentReg('');
             setPaper1('');
             setPaper2('');
             setAbsent(false);
         } catch (err: any) {
-            setError(err.message);
+            const message = err.message || 'Failed to save marks.';
+            setError(message);
+            toast.error(message);
         } finally {
             setSaving(false);
         }
@@ -716,30 +798,29 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
                     <Edit3 className="h-5 w-5 text-[#0F4C81]" />
                     Manual Marks Entry
                 </h3>
-                <p className="text-xs text-gray-500 font-semibold mt-1">Enter marks for a single student selected by region/district/school hierarchy context.</p>
+                <p className="text-xs text-gray-500 font-semibold mt-1">Enter marks for a single student selected within the region, district, and school hierarchy.</p>
             </div>
 
             {localSubject && (
                 <p className={`text-xs font-bold ${hasPractical ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {lookingUp ? '⟳ Inatafuta usanidi...' : hasPractical ? '★ Theory + Practical Somo' : '✔ Theory Only Somo'}
+                    {lookingUp ? 'Loading configuration...' : hasPractical ? 'Theory + Practical' : 'Theory only'}
                 </p>
             )}
 
             <div className="max-w-2xl rounded-2xl border border-gray-200 p-6 space-y-4 bg-slate-50">
                 <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Mwanafunzi / Candidate</label>
-                    <select
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Candidate</label>
+                    <SearchableSelect
                         value={selectedStudentReg}
-                        onChange={e => setSelectedStudentReg(e.target.value)}
-                        className="block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
-                    >
-                        <option value="">Select Student</option>
-                        {students.map(s => (
-                            <option key={s.id} value={s.id}>
-                                {s.first_name} {s.last_name} ({s.exam_number})
-                            </option>
-                        ))}
-                    </select>
+                        onValueChange={setSelectedStudentReg}
+                        placeholder="Select Student"
+                        searchPlaceholder="Search student..."
+                        options={students.map(s => ({
+                            value: s.id,
+                            label: `${s.first_name} ${s.last_name} (${s.exam_number})`,
+                        }))}
+                        className="mt-1"
+                    />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -769,7 +850,7 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
 
                 <label className="flex items-center gap-2 text-xs font-bold text-gray-600 cursor-pointer">
                     <input type="checkbox" checked={absent} onChange={e => setAbsent(e.target.checked)} className="h-4 w-4 text-rose-600 rounded" />
-                    Mwananfunzi huyu hakufanya mtihani (Absent)
+                    (Absent)
                 </label>
 
                 {error && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-700">{error}</div>}
@@ -781,7 +862,7 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
                         onClick={handleSubmit}
                         className="rounded-xl bg-[#0F4C81] px-5 py-3 text-sm font-bold text-white hover:bg-[#0a3a66] disabled:opacity-50 transition"
                     >
-                        {saving ? 'Inahifadhi...' : 'Save Marks Entry'}
+                        {saving ? 'Saving...' : 'Save Marks Entry'}
                     </button>
                 </div>
             </div>
@@ -803,7 +884,7 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
 
     const handleLoad = async () => {
         if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
-            setError('Tafadhali chagua Mkoa, Wilaya, Shule, Somo la vitendo na Darasa.'); return;
+            setError('Please select a region, district, school, practical subject, and class level.'); return;
         }
         setLoading(true); setError(''); setMessage('');
         try {
@@ -820,7 +901,7 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
             });
             setMarksData(init);
         } catch {
-            setError('Imeshindwa kupakia orodha ya masomo ya vitendo.');
+            setError('Failed to load the practical candidate list.');
         } finally {
             setLoading(false);
         }
@@ -841,10 +922,12 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
                 body: JSON.stringify({ examination_subject_id: subjectConfig.examination_subject_id, marks }),
             });
             const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.message || 'Imeshindwa kuhifadhi.');
-            setMessage(`✔ ${body.message || 'Alama za vitendo zimehifadhiwa.'}`);
+            if (!res.ok) throw new Error(body.message || 'Failed to save marks.');
+            setMessage(`✔ ${body.message || 'Practical marks saved successfully.'}`);
         } catch (err: any) {
-            setError(err.message);
+            const message = err.message || 'Failed to save marks.';
+            setError(message);
+            toast.error(message);
         } finally {
             setSaving(false);
         }
@@ -858,7 +941,7 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
             </div>
             <div className="flex justify-end gap-2">
                 <button onClick={handleLoad} disabled={loading} className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60 transition">
-                    {loading ? 'Inapakia...' : 'Load Practical Roster'}
+                    {loading ? 'Loading...' : 'Load Practical Roster'}
                 </button>
             </div>
             {error && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-700">{error}</div>}
@@ -897,7 +980,7 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
                     </div>
                     <div className="flex justify-end">
                         <button disabled={saving} onClick={handleSave} className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50 transition">
-                            {saving ? 'Inahifadhi...' : 'Save Practical Marks'}
+                            {saving ? 'Saving...' : 'Save Practical Marks'}
                         </button>
                     </div>
                 </div>

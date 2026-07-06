@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useToastFeedback } from '@/hooks/use-toast-feedback';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { toast } from 'sonner';
 import { 
     Calendar as CalendarIcon, 
     Clock, 
@@ -7,13 +10,15 @@ import {
     School, 
     Trash2, 
     Plus, 
+    Edit2,
     Loader2, 
     Check, 
     AlertTriangle,
     Eye,
     TrendingUp,
     MapPin,
-    Filter
+    Filter,
+    RotateCcw
 } from 'lucide-react';
 
 type Tab = 'list' | 'create' | 'calendar' | 'timetable' | 'subjects' | 'centers';
@@ -27,11 +32,19 @@ export default function ExamsPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    useToastFeedback({
+        error,
+        success,
+        clearError: () => setError(''),
+        clearSuccess: () => setSuccess(''),
+    });
+
     // Global Metadata
     const [academicYears, setAcademicYears] = useState<any[]>([]);
     const [examTypes, setExamTypes] = useState<any[]>([]);
     const [classLevels, setClassLevels] = useState<any[]>([]);
     const [subjectsList, setSubjectsList] = useState<any[]>([]);
+    const [editingExamId, setEditingExamId] = useState<string | null>(null);
 
     // Hierarchical Filters for Centers Tab
     const [regions, setRegions] = useState<any[]>([]);
@@ -43,11 +56,12 @@ export default function ExamsPage() {
 
     // Create Form
     const [name, setName] = useState('');
+    const [code, setCode] = useState('');
     const [academicYearId, setAcademicYearId] = useState('');
     const [examTypeId, setExamTypeId] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+    const [selectedClassLevelId, setSelectedClassLevelId] = useState('');
 
     // Timetable States
     const [timetable, setTimetable] = useState<any[]>([]);
@@ -72,14 +86,20 @@ export default function ExamsPage() {
             get('/api/v1/subjects'),
             get('/api/v1/regions')
         ]).then(([years, types, classes, subs, regs]) => {
-            setAcademicYears(years);
-            setExamTypes(types);
-            setClassLevels(classes.data || classes);
-            setSubjectsList(subs.data || subs);
-            setRegions(regs);
+            const yearList = Array.isArray(years) ? years : years.data || [];
+            const typeList = Array.isArray(types) ? types : types.data || [];
+            const classList = Array.isArray(classes) ? classes : classes.data || [];
+            const subjectList = Array.isArray(subs) ? subs : subs.data || [];
+            const regionList = Array.isArray(regs) ? regs : regs.data || [];
+
+            setAcademicYears(yearList);
+            setExamTypes(typeList);
+            setClassLevels(classList);
+            setSubjectsList(subjectList);
+            setRegions(regionList);
             
-            if (years.length > 0) setAcademicYearId(years[0].id);
-            if (types.length > 0) setExamTypeId(types[0].id);
+            if (yearList.length > 0) setAcademicYearId(yearList[0].id);
+            if (typeList.length > 0) setExamTypeId(typeList[0].id);
         });
     };
 
@@ -96,6 +116,40 @@ export default function ExamsPage() {
                 setLoading(false);
             })
             .catch(() => setLoading(false));
+    };
+
+    const resetExamForm = () => {
+        setEditingExamId(null);
+        setName('');
+        setCode('');
+        setStartDate('');
+        setEndDate('');
+        setSelectedClassLevelId('');
+    };
+
+    const openEditExam = async (examId: string) => {
+        setError('');
+        setSuccess('');
+        try {
+            const res = await fetch(`/api/v1/examinations/${examId}`, { headers });
+            const body = await res.json();
+            if (!res.ok) {
+                throw new Error(body.message || 'Failed to load examination.');
+            }
+
+            const exam = body;
+            setEditingExamId(exam.id);
+            setName(exam.name || '');
+            setCode(exam.code || '');
+            setAcademicYearId(exam.academic_year_id || '');
+            setExamTypeId(exam.examination_type_id || '');
+            setStartDate(exam.start_date || '');
+            setEndDate(exam.end_date || '');
+            setSelectedClassLevelId(exam.target_class_level_id || exam.targetClassLevel?.id || exam.classLevels?.[0]?.id || '');
+            setActiveTab('create');
+        } catch (err: any) {
+            setError(err.message || 'Failed to open examination for editing.');
+        }
     };
 
     useEffect(() => {
@@ -176,31 +230,38 @@ export default function ExamsPage() {
         setSuccess('');
         setSaving(true);
 
-        fetch('/api/v1/examinations', {
-            method: 'POST',
+        if (!selectedClassLevelId) {
+            setError('Please select a target class level for this examination.');
+            setSaving(false);
+            return;
+        }
+
+        const method = editingExamId ? 'PUT' : 'POST';
+        const endpoint = editingExamId ? `/api/v1/examinations/${editingExamId}` : '/api/v1/examinations';
+
+        fetch(endpoint, {
+            method,
             headers,
             body: JSON.stringify({
                 academic_year_id: academicYearId,
                 examination_type_id: examTypeId,
+                code,
                 name,
                 start_date: startDate,
                 end_date: endDate,
-                class_level_ids: selectedClasses.length > 0 ? selectedClasses : classLevels.map(c => c.id)
+                class_level_id: selectedClassLevelId
             })
         })
         .then(async res => {
             if (!res.ok) {
                 const body = await res.json();
-                throw new Error(body.message || 'Failed to create exam.');
+                throw new Error(body.message || (editingExamId ? 'Failed to update exam.' : 'Failed to create exam.'));
             }
             return res.json();
         })
         .then(() => {
-            setSuccess('Examination draft created successfully!');
-            setName('');
-            setStartDate('');
-            setEndDate('');
-            setSelectedClasses([]);
+            setSuccess(editingExamId ? 'Examination updated successfully!' : 'Examination draft created successfully!');
+            resetExamForm();
             fetchExams();
             setSaving(false);
             setActiveTab('list');
@@ -263,11 +324,17 @@ export default function ExamsPage() {
         setError('');
         setSuccess('');
 
+        if (!selectedExamClassLevelId) {
+            setError('Please load an exam that has a target class level first.');
+            setSaving(false);
+            return;
+        }
+
         const subjectsConfig = subjectsList.map(s => {
             const existing = examSubjects.find(es => es.subject_id === s.id);
             return {
                 subject_id: s.id,
-                class_level_id: classLevels[0]?.id,
+                class_level_id: selectedExamClassLevelId,
                 max_marks: existing ? existing.max_marks : 100,
                 pass_marks: existing ? existing.pass_marks : 30,
                 paper_one_weight: existing ? existing.paper_one_weight : 60,
@@ -327,17 +394,223 @@ export default function ExamsPage() {
         }));
     };
 
+    const normalizeStatus = (status: any) => (typeof status === 'string' ? status : status?.value || '');
+
+    const formatStageLabel = (status: any) => {
+        const normalized = normalizeStatus(status);
+        return normalized ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase()) : 'Unknown';
+    };
+
+    const getStageToneClass = (status: any) => {
+        switch (normalizeStatus(status)) {
+            case 'draft':
+                return 'border border-slate-200 bg-slate-100 text-slate-800 shadow-sm';
+            case 'registration_open':
+                return 'border border-sky-200 bg-sky-50 text-sky-800 shadow-sm';
+            case 'registration_closed':
+                return 'border border-amber-200 bg-amber-50 text-amber-800 shadow-sm';
+            case 'marks_entry_open':
+                return 'border border-violet-200 bg-violet-50 text-violet-800 shadow-sm';
+            case 'processing':
+                return 'border border-orange-200 bg-orange-50 text-orange-800 shadow-sm';
+            case 'processed':
+                return 'border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm';
+            case 'published':
+                return 'border border-green-200 bg-green-50 text-green-800 shadow-sm';
+            case 'closed':
+                return 'border border-slate-300 bg-slate-200 text-slate-800 shadow-sm';
+            default:
+                return 'border border-slate-200 bg-slate-100 text-slate-700 shadow-sm';
+        }
+    };
+
+    const getStageCardClass = (status: any) => {
+        switch (normalizeStatus(status)) {
+            case 'draft':
+                return 'border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100';
+            case 'registration_open':
+                return 'border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white';
+            case 'registration_closed':
+                return 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white';
+            case 'marks_entry_open':
+                return 'border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white';
+            case 'processing':
+                return 'border-orange-100 bg-gradient-to-br from-orange-50 via-white to-white';
+            case 'processed':
+                return 'border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white';
+            case 'published':
+                return 'border-green-100 bg-gradient-to-br from-green-50 via-white to-white';
+            case 'closed':
+                return 'border-slate-300 bg-gradient-to-br from-slate-100 via-white to-slate-50';
+            default:
+                return 'border-slate-200 bg-gradient-to-br from-slate-50 via-white to-white';
+        }
+    };
+
+    const getSummaryBadgeClass = (label: string) => {
+        switch (label) {
+            case 'Exams':
+                return 'border-sky-100 bg-sky-50 text-sky-800';
+            case 'Academic years':
+                return 'border-emerald-100 bg-emerald-50 text-emerald-800';
+            case 'Subjects':
+                return 'border-violet-100 bg-violet-50 text-violet-800';
+            case 'Current exam':
+                return 'border-amber-100 bg-amber-50 text-amber-800';
+            case 'Target class':
+                return 'border-cyan-100 bg-cyan-50 text-cyan-800';
+            default:
+                return 'border-slate-200 bg-slate-50 text-slate-800';
+        }
+    };
+
+    const getRollbackTarget = (status: any) => {
+        const current = normalizeStatus(status);
+        const map: Record<string, string | null> = {
+            registration_open: 'draft',
+            registration_closed: 'registration_open',
+            marks_entry_open: 'registration_closed',
+            processing: 'marks_entry_open',
+            processed: 'processing',
+            published: 'processed',
+            closed: 'published',
+        };
+
+        return map[current] ?? null;
+    };
+
+    const getNextTarget = (status: any) => {
+        const current = normalizeStatus(status);
+        const map: Record<string, string | null> = {
+            draft: 'registration_open',
+            registration_open: 'registration_closed',
+            registration_closed: 'marks_entry_open',
+            marks_entry_open: 'processing',
+            processing: 'processed',
+            processed: 'published',
+            published: 'closed',
+            closed: 'archived',
+        };
+
+        return map[current] ?? null;
+    };
+
+    const handleChangeExamStatus = async (examId: string, status: string) => {
+        setSaving(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const res = await fetch(`/api/v1/examinations/${examId}/status`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ status }),
+            });
+            const body = await res.json();
+            if (!res.ok) {
+                throw new Error(body.message || 'Failed to update exam status.');
+            }
+
+            setSuccess(body.message || `Examination moved to ${formatStageLabel(status)}.`);
+            fetchExams();
+        } catch (err: any) {
+            setError(err.message || 'Failed to update exam status.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const confirmStageChange = (examId: string, targetStatus: string, mode: 'advance' | 'rollback') => {
+        const tone = mode === 'advance' ? 'warning' : 'warning';
+        let toastId: string | number | undefined;
+        toastId = toast[tone](
+            mode === 'advance' ? 'Advance this examination stage?' : 'Rollback this examination stage?',
+            {
+                description: `The examination will move to ${formatStageLabel(targetStatus)}.`,
+                duration: Infinity,
+                action: {
+                    label: 'Confirm',
+                    onClick: () => {
+                        if (toastId !== undefined) {
+                            toast.dismiss(toastId);
+                        }
+                        void handleChangeExamStatus(examId, targetStatus);
+                    },
+                },
+                cancel: {
+                    label: 'Cancel',
+                    onClick: () => {
+                        if (toastId !== undefined) {
+                            toast.dismiss(toastId);
+                        }
+                    },
+                },
+            }
+        );
+    };
+
+    const selectedExam = exams.find(e => e.id === selectedExamId);
+    const selectedExamCode = selectedExam?.code || '—';
+    const selectedExamClassLevelId = selectedExam?.target_class_level_id
+        || selectedExam?.targetClassLevel?.id
+        || selectedExam?.classLevels?.[0]?.id
+        || '';
+    const selectedExamClass = selectedExam?.targetClassLevel?.name
+        || selectedExam?.target_class_level?.name
+        || selectedExam?.classLevels?.[0]?.name
+        || '—';
+    const academicYearLabel = (year: any) => year?.name || year?.year || year?.label || 'Academic Year';
+    const examTypeLabel = (type: any) => type?.name || type?.label || 'Mock Examination';
+    const stageFlow = [
+        { key: 'draft', label: 'Draft' },
+        { key: 'registration_open', label: 'Reg Open' },
+        { key: 'registration_closed', label: 'Reg Closed' },
+        { key: 'marks_entry_open', label: 'Marks Entry' },
+        { key: 'processing', label: 'Processing' },
+        { key: 'processed', label: 'Processed' },
+        { key: 'published', label: 'Published' },
+        { key: 'closed', label: 'Closed' },
+        { key: 'archived', label: 'Archived' },
+    ];
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">Examinations Console</h1>
-                    <p className="mt-1 text-sm text-gray-500 font-medium">Configure examination settings, papers schedule, and monitor candidate registrations.</p>
+            <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-6 text-slate-900 shadow-[0_20px_50px_rgba(15,76,129,0.08)]">
+                <div className="pointer-events-none absolute inset-0">
+                    <div className="absolute -right-12 top-0 h-40 w-40 rounded-full bg-sky-200/35 blur-3xl" />
+                    <div className="absolute left-8 top-8 h-28 w-28 rounded-full bg-emerald-200/30 blur-3xl" />
+                    <div className="absolute bottom-0 right-24 h-24 w-24 rounded-full bg-amber-200/25 blur-3xl" />
+                </div>
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="relative max-w-3xl">
+                        <p className="mb-3 inline-flex rounded-full border border-sky-100 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-700 backdrop-blur">
+                            Examination Operations
+                        </p>
+                        <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Examinations Console</h1>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                            Configure exam definitions, timetable windows, subject weights, and candidate centers from one streamlined workspace.
+                        </p>
+                        
+                    </div>
+                    <div className="relative grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[540px]">
+                        {[
+                            { label: 'Exams', value: String(exams.length) },
+                            { label: 'Academic years', value: String(academicYears.length) },
+                            { label: 'Subjects', value: String(subjectsList.length) },
+                            { label: 'Current exam', value: selectedExamCode },
+                            { label: 'Target class', value: selectedExamClass },
+                        ].map((badge) => (
+                            <div key={badge.label} className={`rounded-2xl border px-3 py-2 shadow-sm backdrop-blur ${getSummaryBadgeClass(badge.label)}`}>
+                                <div className="text-[9px] font-bold uppercase tracking-[0.18em] opacity-80">{badge.label}</div>
+                                <div className="mt-1 truncate text-xs font-semibold leading-5">{badge.value}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* Submenu tabs */}
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto whitespace-nowrap rounded-2xl border border-slate-200 bg-white p-2 shadow-sm scrollbar-hide">
                 {[
                     { id: 'list', label: 'All Examinations', icon: Sliders },
                     { id: 'create', label: 'Create Examination', icon: Plus },
@@ -349,7 +622,7 @@ export default function ExamsPage() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-5 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-1.5 ${activeTab === tab.id ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition flex items-center gap-1.5 ${activeTab === tab.id ? 'bg-[#0F4C81] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                     >
                         <tab.icon className="h-4 w-4" />
                         {tab.label}
@@ -368,15 +641,15 @@ export default function ExamsPage() {
                 </div>
             )}
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
                 
                 {/* 1. ALL EXAMINATIONS LIST */}
                 {activeTab === 'list' && (
                     <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-2">
-                            <h3 className="text-lg font-bold text-gray-900">Configured Examinations List</h3>
-                            <button onClick={fetchExams} className="text-xs text-[#0F4C81] font-bold">Refresh List</button>
-                        </div>
+                            <div className="flex justify-between items-center pb-2">
+                                <h3 className="text-lg font-bold text-gray-900">Configured Examinations List</h3>
+                            <button onClick={fetchExams} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-[#0F4C81] hover:bg-slate-50">Refresh List</button>
+                            </div>
 
                         {loading ? (
                             <div className="flex h-64 items-center justify-center">
@@ -387,31 +660,121 @@ export default function ExamsPage() {
                                 No examinations configured. Go to 'Create Examination' tab to add mock exams.
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div className="space-y-4">
                                 {exams.map(exam => (
-                                    <div key={exam.id} className="rounded-2xl border p-5 flex flex-col justify-between hover:shadow-md transition">
+                                    <div key={exam.id} className={`w-full rounded-[24px] border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md lg:p-5 ${getStageCardClass(exam.status)}`}>
                                         <div>
-                                            <div className="flex items-center justify-between">
-                                                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold uppercase ${
-                                                    exam.status === 'published' ? 'bg-emerald-100 text-emerald-800' :
-                                                    exam.status === 'draft' ? 'bg-slate-100 text-gray-800' :
-                                                    'bg-blue-100 text-[#0F4C81]'
-                                                }`}>{exam.status}</span>
-                                                <span className="text-xs text-gray-400 font-bold">Year: {new Date(exam.start_date).getFullYear()}</span>
+                                            <div className="flex flex-col gap-2 border-b border-white/70 pb-3 lg:flex-row lg:items-start lg:justify-between">
+                                                <div className="space-y-1.5">
+                                                    <div className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] ${getStageToneClass(exam.status)}`}>
+                                                        {formatStageLabel(exam.status)}
+                                                    </div>
+                                                    <h3 className="text-lg font-black tracking-tight text-slate-900 lg:text-xl">{exam.name}</h3>
+                                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                                                        <span>Code: <span className="text-slate-900">{exam.code || 'N/A'}</span></span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span>Year: <span className="text-slate-900">{new Date(exam.start_date).getFullYear()}</span></span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span>Class: <span className="text-slate-900">{exam.targetClassLevel?.name || exam.target_class_level?.name || exam.classLevels?.[0]?.name || 'N/A'}</span></span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-[11px] text-slate-400 lg:text-xs">
+                                                    Active Duration:
+                                                    <div className="mt-0.5 font-semibold text-slate-600">
+                                                        {new Date(exam.start_date).toLocaleDateString()} - {new Date(exam.end_date).toLocaleDateString()}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <h3 className="mt-4 text-lg font-extrabold text-gray-900 leading-snug">{exam.name}</h3>
-                                            <p className="text-xs text-gray-500 mt-2 font-medium">
-                                                Active Duration: {new Date(exam.start_date).toLocaleDateString()} - {new Date(exam.end_date).toLocaleDateString()}
-                                            </p>
+                                            <div className="mt-4">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                                    Progress Timeline
+                                                </p>
+                                                <div className="mt-2 overflow-x-auto">
+                                                <div className="min-w-[760px] rounded-2xl border border-white/70 bg-white/65 px-3 py-3 backdrop-blur-sm">
+                                                    <div className="flex items-start">
+                                                        {stageFlow.map((stage, index) => {
+                                                            const current = normalizeStatus(exam.status);
+                                                            const stageIndex = stageFlow.findIndex((item) => item.key === current);
+                                                            const isActive = stage.key === current;
+                                                            const isDone = stageIndex > -1 && index < stageIndex;
+                                                            const isUpcoming = stageIndex > -1 && index > stageIndex;
+                                                            const lineClass =
+                                                                stageIndex > -1 && index < stageIndex
+                                                                    ? 'bg-emerald-400'
+                                                                    : isActive
+                                                                        ? 'bg-[#0F4C81]'
+                                                                        : 'bg-slate-200';
+
+                                                            return (
+                                                                <div key={stage.key} className="flex min-w-0 flex-1 items-start">
+                                                                    <div className="flex min-w-0 flex-1 flex-col items-center text-center">
+                                                                        <span
+                                                                            className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-black transition ${
+                                                                                isActive
+                                                                                    ? 'border-[#0F4C81] bg-[#0F4C81] text-white shadow-md'
+                                                                                    : isDone
+                                                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                                                        : isUpcoming
+                                                                                            ? 'border-slate-200 bg-white text-slate-400'
+                                                                                            : 'border-slate-200 bg-slate-50 text-slate-500'
+                                                                            }`}
+                                                                        >
+                                                                            {index + 1}
+                                                                        </span>
+                                                                        <span className={`mt-1.5 text-[9px] font-bold uppercase tracking-[0.11em] ${isActive ? 'text-[#0F4C81]' : isDone ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                            {stage.label}
+                                                                        </span>
+                                                                    </div>
+                                                                    {index < stageFlow.length - 1 && (
+                                                                        <div className="mx-2 mt-3.5 flex flex-1 items-center">
+                                                                            <div className={`h-0.5 w-full rounded-full ${lineClass}`} />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            </div>
                                         </div>
-                                        <div className="mt-6 pt-4 border-t flex justify-between items-center">
-                                            <span className="text-xs text-gray-400 font-semibold uppercase">Mock Exam</span>
-                                            <button 
-                                                onClick={() => handleDeleteExam(exam.id)}
-                                                className="text-gray-400 hover:text-rose-600 transition"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                        <div className="mt-4 flex flex-col gap-2 border-t border-white/70 pt-3 lg:flex-row lg:items-center lg:justify-between">
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classic management view</span>
+                                            <div className="flex items-center gap-2">
+                                                {getNextTarget(exam.status) && (
+                                                    <button
+                                                        onClick={() => confirmStageChange(exam.id, getNextTarget(exam.status)!, 'advance')}
+                                                        className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-800 transition hover:bg-sky-100 disabled:opacity-50"
+                                                        disabled={saving}
+                                                    >
+                                                        <TrendingUp className="h-3 w-3" />
+                                                        Advance Stage
+                                                    </button>
+                                                )}
+                                                {getRollbackTarget(exam.status) && (
+                                                    <button
+                                                        onClick={() => confirmStageChange(exam.id, getRollbackTarget(exam.status)!, 'rollback')}
+                                                        className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
+                                                        disabled={saving}
+                                                    >
+                                                        <RotateCcw className="h-3 w-3" />
+                                                        Rollback
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => openEditExam(exam.id)}
+                                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-[#0F4C81] transition hover:bg-slate-50"
+                                                >
+                                                    <Edit2 className="h-3 w-3" />
+                                                    Edit
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteExam(exam.id)}
+                                                    className="text-gray-400 transition hover:text-rose-600"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -423,7 +786,23 @@ export default function ExamsPage() {
                 {/* 2. CREATE EXAMINATION */}
                 {activeTab === 'create' && (
                     <form onSubmit={handleCreateExam} className="space-y-4 max-w-lg">
-                        <h3 className="text-lg font-bold text-gray-900 border-b pb-2">Create New Examination Definition</h3>
+                        <div className="flex items-center justify-between gap-3 border-b pb-2">
+                            <h3 className="text-lg font-bold text-gray-900">
+                                {editingExamId ? 'Edit Examination Definition' : 'Create New Examination Definition'}
+                            </h3>
+                            {editingExamId && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetExamForm();
+                                        setActiveTab('list');
+                                    }}
+                                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                                >
+                                    Cancel Edit
+                                </button>
+                            )}
+                        </div>
                         
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Exam Title / Name</label>
@@ -437,31 +816,41 @@ export default function ExamsPage() {
                             />
                         </div>
 
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Exam Code</label>
+                            <input
+                                value={code}
+                                onChange={e => setCode(e.target.value.toUpperCase())}
+                                required
+                                type="text"
+                                className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0F4C81]"
+                                placeholder="e.g. F4-DMC-2026"
+                            />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Academic Year</label>
-                                <select 
+                                <SearchableSelect
                                     value={academicYearId}
-                                    onChange={e => setAcademicYearId(e.target.value)}
-                                    className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
-                                >
-                                    {academicYears.map(y => (
-                                        <option key={y.id} value={y.id}>{y.year}</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setAcademicYearId}
+                                    placeholder="Select academic year"
+                                    searchPlaceholder="Search academic year..."
+                                    options={academicYears.map((y) => ({ value: y.id, label: academicYearLabel(y) }))}
+                                    className="mt-1"
+                                />
                             </div>
 
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Exam Type Classification</label>
-                                <select 
+                                <SearchableSelect
                                     value={examTypeId}
-                                    onChange={e => setExamTypeId(e.target.value)}
-                                    className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
-                                >
-                                    {examTypes.map(t => (
-                                        <option key={t.id} value={t.id}>{t.name}</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setExamTypeId}
+                                    placeholder="Select exam type"
+                                    searchPlaceholder="Search exam type..."
+                                    options={examTypes.map((t) => ({ value: t.id, label: examTypeLabel(t) }))}
+                                    className="mt-1"
+                                />
                             </div>
                         </div>
 
@@ -489,27 +878,18 @@ export default function ExamsPage() {
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">Target Class Levels</label>
-                            <div className="flex flex-wrap gap-2">
-                                {classLevels.map(c => {
-                                    const checked = selectedClasses.includes(c.id);
-                                    return (
-                                        <button
-                                            key={c.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (checked) setSelectedClasses(selectedClasses.filter(x => x !== c.id));
-                                                else setSelectedClasses([...selectedClasses, c.id]);
-                                            }}
-                                            className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                                                checked ? 'bg-[#0F4C81] text-white border-transparent' : 'bg-white text-gray-600 border-gray-300 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            {c.name}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">Target Class Level</label>
+                            <SearchableSelect
+                                value={selectedClassLevelId}
+                                onValueChange={setSelectedClassLevelId}
+                                placeholder="Select target class level"
+                                searchPlaceholder="Search class level..."
+                                options={classLevels.map(c => ({ value: c.id, label: c.name }))}
+                                className="w-full md:w-[320px]"
+                            />
+                            <p className="mt-2 text-xs text-gray-500">
+                                This examination will be managed as a single class-level exam.
+                            </p>
                         </div>
 
                         <button 
@@ -517,7 +897,7 @@ export default function ExamsPage() {
                             disabled={saving}
                             className="rounded-xl bg-[#0F4C81] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c3c66] transition disabled:opacity-50"
                         >
-                            {saving ? 'Creating Draft...' : 'Create Examination & Map'}
+                            {saving ? (editingExamId ? 'Saving Changes...' : 'Creating Draft...') : (editingExamId ? 'Update Examination' : 'Create Examination & Map')}
                         </button>
                     </form>
                 )}
@@ -530,15 +910,14 @@ export default function ExamsPage() {
                                 <h3 className="text-lg font-bold text-gray-900">Examination Calendar Schedule</h3>
                                 <p className="text-xs text-gray-500 font-semibold">Timeline view of scheduled papers across the mock date duration.</p>
                             </div>
-                            <select 
+                            <SearchableSelect
                                 value={selectedExamId}
-                                onChange={e => setSelectedExamId(e.target.value)}
-                                className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold"
-                            >
-                                {exams.map(e => (
-                                    <option key={e.id} value={e.id}>{e.name}</option>
-                                ))}
-                            </select>
+                                onValueChange={setSelectedExamId}
+                                placeholder="Select Exam"
+                                searchPlaceholder="Search exam..."
+                                options={exams.map(e => ({ value: e.id, label: e.name }))}
+                                className="min-w-[240px]"
+                            />
                         </div>
 
                         {loadingTimetable ? (
@@ -586,15 +965,14 @@ export default function ExamsPage() {
                                 <h3 className="text-lg font-bold text-gray-900">Examination Timetable Editor</h3>
                                 <p className="text-xs text-gray-500 font-semibold">Configure morning or afternoon session schedules per subject paper.</p>
                             </div>
-                            <select 
+                            <SearchableSelect
                                 value={selectedExamId}
-                                onChange={e => setSelectedExamId(e.target.value)}
-                                className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold"
-                            >
-                                {exams.map(e => (
-                                    <option key={e.id} value={e.id}>{e.name}</option>
-                                ))}
-                            </select>
+                                onValueChange={setSelectedExamId}
+                                placeholder="Select Exam"
+                                searchPlaceholder="Search exam..."
+                                options={exams.map(e => ({ value: e.id, label: e.name }))}
+                                className="min-w-[240px]"
+                            />
                         </div>
 
                         {loadingTimetable ? (
@@ -675,15 +1053,14 @@ export default function ExamsPage() {
                                 <h3 className="text-lg font-bold text-gray-900">Map Subjects & Assign Theory/Practical Weights</h3>
                                 <p className="text-xs text-gray-500 font-semibold">Map curriculum subjects to mock definitions, configuring pass points thresholds.</p>
                             </div>
-                            <select 
+                            <SearchableSelect
                                 value={selectedExamId}
-                                onChange={e => setSelectedExamId(e.target.value)}
-                                className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold"
-                            >
-                                {exams.map(e => (
-                                    <option key={e.id} value={e.id}>{e.name}</option>
-                                ))}
-                            </select>
+                                onValueChange={setSelectedExamId}
+                                placeholder="Select Exam"
+                                searchPlaceholder="Search exam..."
+                                options={exams.map(e => ({ value: e.id, label: e.name }))}
+                                className="min-w-[240px]"
+                            />
                         </div>
 
                         {loadingSubjects ? (
@@ -774,30 +1151,26 @@ export default function ExamsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Filter Region</label>
-                                <select 
+                                <SearchableSelect
                                     value={selectedRegion}
-                                    onChange={e => setSelectedRegion(e.target.value)}
-                                    className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
-                                >
-                                    <option value="">Select Region</option>
-                                    {regions.map(r => (
-                                        <option key={r.id} value={r.id}>{r.name}</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setSelectedRegion}
+                                    placeholder="Select Region"
+                                    searchPlaceholder="Search region..."
+                                    options={regions.map(r => ({ value: r.id, label: r.name }))}
+                                    className="mt-1"
+                                />
                             </div>
 
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600">Filter District</label>
-                                <select 
+                                <SearchableSelect
                                     value={selectedDistrict}
-                                    onChange={e => setSelectedDistrict(e.target.value)}
-                                    className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
-                                >
-                                    <option value="">Select District</option>
-                                    {districts.map(d => (
-                                        <option key={d.id} value={d.id}>{d.name}</option>
-                                    ))}
-                                </select>
+                                    onValueChange={setSelectedDistrict}
+                                    placeholder="Select District"
+                                    searchPlaceholder="Search district..."
+                                    options={districts.map(d => ({ value: d.id, label: d.name }))}
+                                    className="mt-1"
+                                />
                             </div>
                         </div>
 

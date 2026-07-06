@@ -72,7 +72,7 @@ class SmsDispatcherService
 
         // Swahili message construction
         $studentName = $student->first_name . ' ' . $student->last_name;
-        $message = "Matokeo ya {$studentName} - {$exam->name}: {$gradesString}. Div: {$summary->division} (Pnt: {$summary->division_points}, GPA: {$summary->gpa}). Nafasi Shuleni: {$summary->school_position}. Wilayani: {$summary->district_position}. DERMS.";
+        $message = "Matokeo ya {$studentName} - {$exam->name}: {$gradesString}. Div: {$summary->division} (Pnt: {$summary->division_points}, GPA: {$summary->gpa}). Nafasi Shuleni: {$summary->school_position}. Wilayani: {$summary->district_position}. IDEMS.";
 
         $log = SmsLog::create([
             'id' => (string) Str::uuid(),

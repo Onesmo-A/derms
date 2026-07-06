@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const OVERLAY = 'fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-50';
 const MODAL_BOX = 'bg-white rounded-xl p-6 w-full max-w-md shadow-2xl';
@@ -23,7 +24,7 @@ export default function AcademicSetupPage() {
     // Forms
     const [yearForm, setYearForm] = useState({ name: '', start_date: '', end_date: '', is_active: false });
     const [classForm, setClassForm] = useState({ name: '', numeric_level: '' });
-    const [subjectForm, setSubjectForm] = useState({ name: '', code: '', has_practical: false, class_level_id: '' });
+    const [subjectForm, setSubjectForm] = useState({ name: '', short_name: '', code: '', has_practical: false, class_level_id: '' });
     const [gradingForm, setGradingForm] = useState({ label: '', min_percent: '', max_percent: '', points: '' });
     const [ruleForm, setRuleForm] = useState({ name: '', min_points: '', max_points: '', badge: '' });
 
@@ -80,7 +81,7 @@ export default function AcademicSetupPage() {
             const res = await fetch('/api/v1/subjects', { method: 'POST', headers, body: JSON.stringify(subjectForm) });
             if (!res.ok) throw new Error('Failed');
             setShowSubjectModal(false);
-            setSubjectForm({ name: '', code: '', has_practical: false, class_level_id: '' });
+            setSubjectForm({ name: '', short_name: '', code: '', has_practical: false, class_level_id: '' });
             fetchData();
         } catch (e) { console.error(e); }
     };
@@ -250,6 +251,7 @@ export default function AcademicSetupPage() {
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
                                         <th className="px-6 py-3 font-semibold">Subject Name</th>
+                                        <th className="px-6 py-3 font-semibold">Short Name</th>
                                         <th className="px-6 py-3 font-semibold">Code</th>
                                         <th className="px-6 py-3 font-semibold">Practical Component</th>
                                     </tr>
@@ -258,12 +260,13 @@ export default function AcademicSetupPage() {
                                     {subjects.map((s, idx) => (
                                         <tr key={s.id ?? `subject-${idx}`} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 font-medium text-gray-900">{s.name}</td>
+                                            <td className="px-6 py-4 font-mono text-xs">{s.short_name || s.code}</td>
                                             <td className="px-6 py-4 font-mono">{s.code}</td>
                                             <td className="px-6 py-4">{s.has_practical ? 'Yes (Theory + Practical)' : 'No (Theory Only)'}</td>
                                         </tr>
                                     ))}
                                     {subjects.length === 0 && (
-                                        <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-400">No subjects yet.</td></tr>
+                                        <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-400">No subjects yet.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -388,17 +391,20 @@ export default function AcademicSetupPage() {
                         <h2 className="text-xl font-bold mb-4 text-gray-900">Add Subject</h2>
                         <div className="space-y-3">
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Subject Name" value={subjectForm.name} onChange={e => setSubjectForm({ ...subjectForm, name: e.target.value })} />
+                            <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Short Name (e.g. CIV)" value={subjectForm.short_name} onChange={e => setSubjectForm({ ...subjectForm, short_name: e.target.value })} />
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Code (e.g. MATH)" value={subjectForm.code} onChange={e => setSubjectForm({ ...subjectForm, code: e.target.value })} />
                             <label className="flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" checked={subjectForm.has_practical} onChange={e => setSubjectForm({ ...subjectForm, has_practical: e.target.checked })} />
                                 Has Practical Component
                             </label>
-                            <select className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" value={subjectForm.class_level_id} onChange={e => setSubjectForm({ ...subjectForm, class_level_id: e.target.value })}>
-                                <option value="">Select Class Level</option>
-                                {classLevels.map(cl => (
-                                    <option key={cl.id} value={cl.id}>{cl.name}</option>
-                                ))}
-                            </select>
+                            <SearchableSelect
+                                value={subjectForm.class_level_id}
+                                onValueChange={(value) => setSubjectForm({ ...subjectForm, class_level_id: value })}
+                                placeholder="Select Class Level"
+                                searchPlaceholder="Search class level..."
+                                options={classLevels.map(cl => ({ value: cl.id, label: cl.name }))}
+                                className="mt-1"
+                            />
                         </div>
                         <div className="mt-5 flex justify-end gap-2">
                             <button className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm" onClick={() => setShowSubjectModal(false)}>Cancel</button>

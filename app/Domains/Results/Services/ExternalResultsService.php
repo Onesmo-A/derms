@@ -106,7 +106,7 @@ class ExternalResultsService
     /**
      * Resolve or auto-create a school for a given centre number
      */
-    private function resolveSchoolId(string $centreNumber, string $sourceSystem, int $year, string $schoolName = null): string
+    private function resolveSchoolId(string $centreNumber, string $sourceSystem, int $year, ?string $schoolName = null): string
     {
         $mapped = DB::table('school_mappings')
             ->where('source_system', $sourceSystem)
@@ -195,6 +195,7 @@ class ExternalResultsService
                 'id' => $examId,
                 'academic_year_id' => $academicYear->id,
                 'examination_type_id' => $examTypeId,
+                'target_class_level_id' => $classLevel->id,
                 'name' => "{$session->source_system} {$session->exam_type} {$session->year}",
                 'start_date' => now(),
                 'end_date' => now(),
@@ -225,7 +226,12 @@ class ExternalResultsService
                 }
 
                 // Match student record
-                $student = DB::table('students')->where('registration_number', $raw->candidate_number)->first();
+                $student = DB::table('students')
+                    ->where('school_id', $schoolId)
+                    ->where('academic_year_id', $academicYear->id)
+                    ->where('current_class_level_id', $classLevel->id)
+                    ->where('registration_number', $raw->candidate_number)
+                    ->first();
                 if (!$student) {
                     $studentId = Str::uuid()->toString();
                     DB::table('students')->insert([

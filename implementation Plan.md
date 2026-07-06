@@ -1,12 +1,12 @@
-# Implementation Plan - District Examination & Results Management System (DERMS)
+# Implementation Plan - District Examination & Results Management System (IDEMS)
 
-This implementation plan details the architecture, design, and incremental delivery strategy for the **District Examination & Results Management System (DERMS)**. 
+This implementation plan details the architecture, design, and incremental delivery strategy for the **District Examination & Results Management System (IDEMS)**. 
 
 ---
 
 ## 1. System Architecture & High-Level Design
 
-DERMS is structured as a **Modular Monolith** in Laravel 13 (Backend) serving a **React 19 SPA** (Frontend). 
+IDEMS is structured as a **Modular Monolith** in Laravel 13 (Backend) serving a **React 19 SPA** (Frontend). 
 
 ```
                                +-----------------------------+
@@ -44,7 +44,7 @@ DERMS is structured as a **Modular Monolith** in Laravel 13 (Backend) serving a 
 The directory structure is organized to maintain modularity.
 
 ```
-derms/
+idems/
 ├── app/
 │   ├── Concerns/               # Shared concerns/helper classes
 │   ├── Domains/                # Domain-Driven Design Modules
@@ -722,7 +722,7 @@ To keep implementation organized and verifiable, development is structured into 
 
 ```mermaid
 gantt
-    title DERMS Implementation Roadmap
+    title IDEMS Implementation Roadmap
     dateFormat  YYYY-MM-DD
     section Phase 1: Core Setup
     Database Schema & Modularity Setup :active, p1, 2026-06-24, 4d
@@ -799,9 +799,9 @@ gantt
 
 > [!NOTE]
 > **3. Server Infrastructure**
-> For the Docker container setup, do you want us to write standard Compose configurations, and is there a target server OS (e.g., Ubuntu LTS on VPS or XAMPP on Windows)? We see the codebase is in `c:\xampp\htdocs\DERMS` which is XAMPP on Windows. For local development, running `artisan serve` works, and we can configure Docker for staging/production.
+> For the Docker container setup, do you want us to write standard Compose configurations, and is there a target server OS (e.g., Ubuntu LTS on VPS or XAMPP on Windows)? We see the codebase is in `c:\xampp\htdocs\IDEMS` which is XAMPP on Windows. For local development, running `artisan serve` works, and we can configure Docker for staging/production.
  
-# Implementation Plan: Modular Feature Dashboards for DERMS Console
+# Implementation Plan: Modular Feature Dashboards for IDEMS Console
 
 To build all 70+ views requested by the user, we will implement a **Modular Tab-Based Routing Architecture**. Instead of creating 70 separate boilerplate files, we will consolidate them into **11 Premium Feature Dashboards** under `resources/js/pages/`. Each dashboard will parse the URL path (or a search query/sub-route) to render the corresponding view, forms, and charts.
 

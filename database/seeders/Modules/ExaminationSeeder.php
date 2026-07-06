@@ -6,7 +6,6 @@ use App\Domains\Examination\Models\ExaminationType;
 use App\Domains\Examination\Models\GradingSystem;
 use App\Domains\Examination\Models\GradingSystemDetail;
 use App\Domains\Examination\Models\Subject;
-use App\Domains\Student\Models\ClassLevel;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -15,23 +14,23 @@ class ExaminationSeeder extends Seeder
     public function run(): void
     {
         $subjects = [
-            ['name' => 'Basic Mathematics', 'code' => '011', 'has_practical' => false],
-            ['name' => 'English Language', 'code' => '012', 'has_practical' => false],
-            ['name' => 'Kiswahili', 'code' => '013', 'has_practical' => false],
-            ['name' => 'History', 'code' => '014', 'has_practical' => false],
-            ['name' => 'Geography', 'code' => '015', 'has_practical' => false],
-            ['name' => 'Civics', 'code' => '010', 'has_practical' => false],
-            ['name' => 'Physics', 'code' => '031', 'has_practical' => true],
-            ['name' => 'Chemistry', 'code' => '032', 'has_practical' => true],
-            ['name' => 'Biology', 'code' => '033', 'has_practical' => true],
+            ['name' => 'Basic Mathematics', 'short_name' => 'MAT', 'code' => '011', 'has_practical' => false],
+            ['name' => 'English Language', 'short_name' => 'ENG', 'code' => '012', 'has_practical' => false],
+            ['name' => 'Kiswahili', 'short_name' => 'KIS', 'code' => '013', 'has_practical' => false],
+            ['name' => 'History', 'short_name' => 'HIST', 'code' => '014', 'has_practical' => false],
+            ['name' => 'Geography', 'short_name' => 'GEO', 'code' => '015', 'has_practical' => false],
+            ['name' => 'Civics', 'short_name' => 'CIV', 'code' => '010', 'has_practical' => false],
+            ['name' => 'Physics', 'short_name' => 'PHY', 'code' => '031', 'has_practical' => true],
+            ['name' => 'Chemistry', 'short_name' => 'CHE', 'code' => '032', 'has_practical' => true],
+            ['name' => 'Biology', 'short_name' => 'BIO', 'code' => '033', 'has_practical' => true],
         ];
 
         foreach ($subjects as $subjectData) {
-            Subject::firstOrCreate(
+            Subject::updateOrCreate(
                 ['code' => $subjectData['code']],
                 [
-                    'id' => (string) Str::uuid(),
                     'name' => $subjectData['name'],
+                    'short_name' => $subjectData['short_name'],
                     'has_practical' => $subjectData['has_practical'],
                 ]
             );
@@ -54,8 +53,6 @@ class ExaminationSeeder extends Seeder
                 ]
             );
         }
-
-        $formFour = ClassLevel::where('name', 'Form Four')->first();
 
         $subjectGrading = GradingSystem::firstOrCreate(
             ['type' => 'subject', 'class_level_id' => null],
@@ -118,7 +115,5 @@ class ExaminationSeeder extends Seeder
                 ]
             );
         }
-
-
     }
 }

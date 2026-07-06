@@ -8,5 +8,7 @@ class ReportCriteriaData
         public readonly string $examId,
         public readonly string $classLevelId,
         public readonly ?string $schoolId = null,
+        public readonly ?string $districtId = null,
+        public readonly ?string $regionId = null,
     ) {}
 }

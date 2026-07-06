@@ -32,9 +32,11 @@ class PdfReportService
     public function generateMeritListPdf(
         Examination $exam,
         string $classLevelId,
-        ?string $schoolId = null
+        ?string $schoolId = null,
+        ?string $districtId = null,
+        ?string $regionId = null
     ): \Barryvdh\DomPDF\PDF {
-        $students = $this->reportingDataService->getMeritList($exam, $classLevelId, $schoolId);
+        $students = $this->reportingDataService->getMeritList($exam, $classLevelId, $schoolId, $districtId, $regionId);
         $data = [
             'exam' => $exam,
             'students' => $students,

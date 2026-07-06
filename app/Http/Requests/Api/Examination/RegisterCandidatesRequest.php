@@ -14,9 +14,11 @@ class RegisterCandidatesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'school_ids' => ['required', 'array', 'min:1'],
+            'school_ids' => ['sometimes', 'nullable', 'array', 'min:1'],
             'school_ids.*' => ['uuid', 'exists:schools,id'],
-            'class_level_id' => ['required', 'uuid', 'exists:class_levels,id'],
+            'student_ids' => ['sometimes', 'nullable', 'array', 'min:1'],
+            'student_ids.*' => ['uuid', 'exists:students,id'],
+            'class_level_id' => ['sometimes', 'nullable', 'uuid', 'exists:class_levels,id'],
         ];
     }
 }

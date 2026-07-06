@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useToastFeedback } from '@/hooks/use-toast-feedback';
 import {
     Activity, AlertTriangle, CheckCircle2, ChevronRight, Clock, Eye, EyeOff,
     Filter, Globe, GraduationCap, KeyRound, Layers, Lock, LogIn,
@@ -217,6 +219,11 @@ function UserFormModal({ onClose, onSaved, editUser }: {
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
+    useToastFeedback({
+        error,
+        clearError: () => setError(''),
+    });
+
     useEffect(() => {
         fetch('/api/v1/users/form-data', { headers: apiHeaders() })
             .then(r => r.json()).then(setFormMeta).catch(() => {});
@@ -312,46 +319,62 @@ function UserFormModal({ onClose, onSaved, editUser }: {
 
                     <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Role</label>
-                        <select value={formData.role} onChange={e => set('role', e.target.value)} required
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                            <option value="">Select role…</option>
-                            {formMeta.roles.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={formData.role}
+                            onValueChange={(value) => set('role', value)}
+                            placeholder="Select role"
+                            searchPlaceholder="Search role..."
+                            options={formMeta.roles.map((r: any) => ({ value: r.name, label: r.name }))}
+                            className="mt-1"
+                        />
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
-                            <select value={formData.region_id} onChange={e => set('region_id', e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                                <option value="">— Any —</option>
-                                {formMeta.regions.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                value={formData.region_id}
+                                onValueChange={(value) => set('region_id', value)}
+                                placeholder="Any"
+                                searchPlaceholder="Search region..."
+                                options={formMeta.regions.map((r: any) => ({ value: r.id, label: r.name }))}
+                                className="mt-1"
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">District</label>
-                            <select value={formData.district_id} onChange={e => set('district_id', e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                                <option value="">— Any —</option>
-                                {formMeta.districts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                value={formData.district_id}
+                                onValueChange={(value) => set('district_id', value)}
+                                placeholder="Any"
+                                searchPlaceholder="Search district..."
+                                options={formMeta.districts.map((d: any) => ({ value: d.id, label: d.name }))}
+                                className="mt-1"
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">School</label>
-                            <select value={formData.school_id} onChange={e => set('school_id', e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                                <option value="">— Any —</option>
-                                {formMeta.schools.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                value={formData.school_id}
+                                onValueChange={(value) => set('school_id', value)}
+                                placeholder="Any"
+                                searchPlaceholder="Search school..."
+                                options={formMeta.schools.map((s: any) => ({ value: s.id, label: s.name }))}
+                                className="mt-1"
+                            />
                         </div>
                     </div>
 
                     <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
-                        <select value={formData.status} onChange={e => set('status', e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                            {['active', 'pending', 'inactive'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={formData.status}
+                            onValueChange={(value) => set('status', value)}
+                            placeholder="Select status"
+                            searchPlaceholder="Search status..."
+                            options={['active', 'pending', 'inactive'].map(s => ({ value: s, label: s }))}
+                            className="mt-1"
+                        />
                     </div>
 
                     {formMeta.permissions?.length > 0 && (
@@ -446,13 +469,14 @@ function UsersTab() {
                             placeholder="Search users…"
                             className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-sm outline-none focus:border-[#0F4C81]" />
                     </div>
-                    <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                        <option value="">All statuses</option>
-                        {['active', 'inactive', 'locked', 'suspended', 'archived', 'pending'].map(s =>
-                            <option key={s} value={s}>{s}</option>
-                        )}
-                    </select>
+                    <SearchableSelect
+                        value={statusFilter}
+                        onValueChange={(value) => { setStatusFilter(value); setPage(1); }}
+                        placeholder="All statuses"
+                        searchPlaceholder="Search status..."
+                        options={['active', 'inactive', 'locked', 'suspended', 'archived', 'pending'].map(s => ({ value: s, label: s }))}
+                        className="min-w-[220px]"
+                    />
                 </div>
                 <button onClick={() => { setEditUser(null); setShowForm(true); }}
                     className="flex items-center gap-2 rounded-xl bg-[#0F4C81] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0c3c66] transition shadow-sm">
@@ -806,17 +830,22 @@ function ActivityLogsTab() {
                     <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search logs…"
                         className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-sm outline-none focus:border-[#0F4C81]" />
                 </div>
-                <select value={moduleFilter} onChange={e => { setModuleFilter(e.target.value); setPage(1); }}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                    <option value="">All modules</option>
-                    {modules.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0F4C81] bg-white">
-                    <option value="">All statuses</option>
-                    <option value="success">Success</option>
-                    <option value="failed">Failed</option>
-                </select>
+                <SearchableSelect
+                    value={moduleFilter}
+                    onValueChange={(value) => { setModuleFilter(value); setPage(1); }}
+                    placeholder="All modules"
+                    searchPlaceholder="Search module..."
+                    options={modules.map(m => ({ value: m, label: m }))}
+                    className="min-w-[220px]"
+                />
+                <SearchableSelect
+                    value={statusFilter}
+                    onValueChange={(value) => { setStatusFilter(value); setPage(1); }}
+                    placeholder="All statuses"
+                    searchPlaceholder="Search status..."
+                    options={[{ value: 'success', label: 'Success' }, { value: 'failed', label: 'Failed' }]}
+                    className="min-w-[220px]"
+                />
                 <button onClick={load} className="rounded-xl border border-slate-200 p-2 hover:bg-slate-50 transition" title="Refresh">
                     <RefreshCw className={`h-4 w-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
                 </button>

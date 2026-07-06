@@ -14,9 +14,12 @@ class ExaminationPolicy
     {
         return $user->hasAnyRole([
             'Super Administrator',
-            'District Officer',
-            'School Administrator',
-            'Teacher',
+            'Regional Education Officer (REO)',
+            'District Education Officer (DEO)',
+            'District Academic Officer',
+            'Head of School',
+            'Academic Master/Mistress',
+            'Subject Teacher',
         ]);
     }
 
@@ -35,7 +38,9 @@ class ExaminationPolicy
     {
         return $user->hasAnyRole([
             'Super Administrator',
-            'District Officer',
+            'Regional Education Officer (REO)',
+            'District Education Officer (DEO)',
+            'District Academic Officer',
         ]);
     }
 
@@ -88,11 +93,11 @@ class ExaminationPolicy
             return true;
         }
 
-        if ($user->hasRole('District Officer')) {
+        if ($user->hasAnyRole(['Regional Education Officer (REO)', 'District Education Officer (DEO)', 'District Academic Officer'])) {
             return $user->district_id !== null;
         }
 
-        if ($user->hasRole('School Administrator') || $user->hasRole('Teacher')) {
+        if ($user->hasAnyRole(['Head of School', 'Academic Master/Mistress', 'Subject Teacher'])) {
             return $user->school_id !== null;
         }
 

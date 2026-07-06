@@ -4,21 +4,23 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Domains\School\Models\Subject;
+use App\Domains\School\Services\AcademicCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubjectController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(AcademicCatalogService $catalogService): JsonResponse
     {
-        return response()->json(Subject::with('classLevel')->get());
+        return response()->json($catalogService->listSubjects());
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, AcademicCatalogService $catalogService): JsonResponse
     {
         $data = $request->validate([
             'name'           => 'required|string|max:150',
+            'short_name'     => 'nullable|string|max:20',
             'code'           => 'required|string|max:20|unique:subjects,code',
             'has_practical'  => 'boolean',
             'class_level_id' => 'nullable|uuid|exists:class_levels,id',
@@ -26,70 +28,46 @@ class SubjectController extends Controller
             'is_active'      => 'boolean',
         ]);
 
-        $subject = Subject::create($data);
+        $subject = $catalogService->storeSubject($data);
         return response()->json($subject->load('classLevel'), 201);
     }
 
     public function show($id): JsonResponse
     {
-        return response()->json(Subject::with('classLevel')->findOrFail($id));
+        $subject = Subject::findOrFail($id);
+        return response()->json(app(AcademicCatalogService::class)->showSubject($subject));
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(Request $request, $id, AcademicCatalogService $catalogService): JsonResponse
     {
         $subject = Subject::findOrFail($id);
         $data = $request->validate([
             'name'           => 'sometimes|string|max:150',
+            'short_name'     => 'nullable|string|max:20',
             'code'           => "sometimes|string|max:20|unique:subjects,code,{$id}",
             'has_practical'  => 'boolean',
             'class_level_id' => 'nullable|uuid|exists:class_levels,id',
             'description'    => 'nullable|string',
             'is_active'      => 'boolean',
         ]);
-        $subject->update($data);
-        return response()->json($subject->load('classLevel'));
+        return response()->json($catalogService->updateSubject($subject, $data));
     }
 
     public function destroy($id): JsonResponse
     {
-        Subject::findOrFail($id)->delete();
+        app(AcademicCatalogService::class)->deleteSubject(Subject::findOrFail($id));
         return response()->json(null, 204);
     }
 
-    public function import(Request $request): JsonResponse
+    public function import(Request $request, AcademicCatalogService $catalogService): JsonResponse
     {
         $request->validate(['file' => 'required|file|mimes:csv,txt']);
-        $file   = $request->file('file');
-        $handle = fopen($file->getRealPath(), 'r');
-        $header  = fgetcsv($handle);
-        $created = 0;
-        while (($row = fgetcsv($handle)) !== false) {
-            $data = array_combine($header, $row);
-            if (empty($data['name']) || empty($data['code'])) continue;
-            Subject::updateOrCreate(
-                ['code' => $data['code']],
-                [
-                    'name'           => $data['name'],
-                    'description'    => $data['description'] ?? null,
-                    'class_level_id' => $data['class_level_id'] ?? null,
-                    'is_active'      => isset($data['is_active']) ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN) : true,
-                ]
-            );
-            $created++;
-        }
-        fclose($handle);
+        $created = $catalogService->importSubjects($request->file('file'));
         return response()->json(['message' => "$created records imported."]);
     }
 
-    public function template(): StreamedResponse
+    public function template(AcademicCatalogService $catalogService): StreamedResponse
     {
-        $headers  = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="subject_template.csv"'];
-        $callback = function () {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['name', 'code', 'description', 'class_level_id', 'is_active']);
-            fputcsv($out, ['Mathematics', 'MATH', 'Core math subject', '', 'true']);
-            fclose($out);
-        };
-        return new StreamedResponse($callback, 200, $headers);
+        return $catalogService->subjectTemplate();
     }
 }

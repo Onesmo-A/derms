@@ -164,11 +164,26 @@
         /* Chrome, Safari and Opera */
     }
 
-    .derms-table-wrap {
-        @apply w-full overflow-x-auto rounded-xl border border-border shadow-sm;
+    .idems-table-wrap {
+        @apply w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(15, 76, 129, 0.28) transparent;
     }
 
-    .derms-page {
+    .idems-table-wrap::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .idems-table-wrap::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .idems-table-wrap::-webkit-scrollbar-thumb {
+        background-color: rgba(15, 76, 129, 0.28);
+        border-radius: 9999px;
+    }
+
+    .idems-page {
         @apply w-full px-4 sm:px-6 md:px-8 py-6 max-w-7xl mx-auto;
     }
 }

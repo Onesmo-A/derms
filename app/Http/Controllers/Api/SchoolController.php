@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Domains\Identity\Models\User;
 use App\Domains\School\Models\School;
+use App\Domains\School\Services\SchoolManagementService;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\School\DistrictIndexRequest;
 use App\Http\Requests\Api\School\SchoolIndexRequest;
 use App\Http\Requests\Api\School\SchoolStoreRequest;
@@ -13,49 +13,24 @@ use App\Services\AuditLogger;
 
 class SchoolController extends Controller
 {
-    /**
-     * Display a listing of the schools (paginated and filtered).
-     */
+    public function __construct(
+        private SchoolManagementService $schools,
+    ) {}
+
     public function index(SchoolIndexRequest $request)
     {
         $this->authorize('viewAny', School::class);
 
-        $user = $request->user();
-        $query = School::with('district.region');
-
-        $this->applyAccessScope($query, $user);
-
-        if ($request->filled('district_id')) {
-            $query->where('district_id', $request->validated('district_id'));
-        }
-
-        if ($request->filled('type')) {
-            $query->where('type', $request->validated('type'));
-        }
-
-        if ($request->filled('level')) {
-            $query->where('level', $request->validated('level'));
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->validated('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('registration_number', 'like', "%{$search}%");
-            });
-        }
-
-        return response()->json($query->paginate(15));
+        return response()->json(
+            $this->schools->buildIndexQuery($request->validated(), $request->user())->get()
+        );
     }
 
-    /**
-     * Store a newly created school in the database.
-     */
     public function store(SchoolStoreRequest $request, AuditLogger $auditLogger)
     {
         $this->authorize('create', School::class);
 
-        $school = School::create($request->validated());
+        $school = $this->schools->createSchool($request->validated());
 
         $auditLogger->log(
             action: 'school.created',
@@ -66,32 +41,31 @@ class SchoolController extends Controller
         );
 
         return response()->json([
-            'school' => $school->load('district.region'),
-            'message' => 'School registered successfully.'
+            'school' => $school->load('district.region')->loadCount('students'),
+            'message' => 'School registered successfully.',
         ], 201);
     }
 
-    /**
-     * Display the specified school.
-     */
     public function show(string $id)
     {
-        $school = School::with(['district.region', 'users'])->findOrFail($id);
+        $school = School::with([
+            'district.region',
+            'users',
+            'students.classLevel',
+            'students.class_level',
+        ])->withCount('students')->findOrFail($id);
         $this->authorize('view', $school);
 
         return response()->json($school);
     }
 
-    /**
-     * Update the specified school in the database.
-     */
     public function update(SchoolUpdateRequest $request, string $id, AuditLogger $auditLogger)
     {
         $school = School::findOrFail($id);
         $this->authorize('update', $school);
 
         $oldValues = $school->toArray();
-        $school->update($request->validated());
+        $school = $this->schools->updateSchool($school, $request->validated());
 
         $auditLogger->log(
             action: 'school.updated',
@@ -103,20 +77,18 @@ class SchoolController extends Controller
         );
 
         return response()->json([
-            'school' => $school->load('district.region'),
-            'message' => 'School updated successfully.'
+            'school' => $school->load('district.region')->loadCount('students'),
+            'message' => 'School updated successfully.',
         ]);
     }
 
-    /**
-     * Remove the specified school (Soft Delete).
-     */
     public function destroy(string $id, AuditLogger $auditLogger)
     {
         $school = School::findOrFail($id);
         $this->authorize('delete', $school);
+
         $oldValues = $school->toArray();
-        $school->delete();
+        $this->schools->deleteSchool($school);
 
         $auditLogger->log(
             action: 'school.deleted',
@@ -125,57 +97,26 @@ class SchoolController extends Controller
             oldValues: $oldValues
         );
 
-        return response()->json([
-            'message' => 'School deleted successfully.'
-        ]);
+        return response()->json(['message' => 'School deleted successfully.']);
     }
 
-    /**
-     * Display a listing of all regions.
-     */
     public function regions()
     {
-        return response()->json(\App\Domains\School\Models\Region::orderBy('name')->get());
+        $query = \App\Domains\School\Models\Region::query();
+        app(\App\Services\AccessScopeService::class)->applyRegionScope($query, auth()->user());
+
+        return response()->json($query->orderBy('name')->get(['id', 'name', 'code']));
     }
 
-    /**
-     * Display a listing of districts, optionally filtered by region.
-     */
     public function districts(DistrictIndexRequest $request)
     {
-        $query = \App\Domains\School\Models\District::query();
+        $query = \App\Domains\School\Models\District::with('region');
+        app(\App\Services\AccessScopeService::class)->applyDistrictScope($query, auth()->user());
 
         if ($request->filled('region_id')) {
             $query->where('region_id', $request->validated('region_id'));
         }
 
-        return response()->json($query->orderBy('name')->get());
-    }
-
-    /**
-     * Apply data access scope based on the authenticated user's role and organizational scope.
-     */
-    protected function applyAccessScope($query, User $user): void
-    {
-        if ($user->hasRole('Super Administrator')) {
-            return;
-        }
-
-        if ($user->hasRole('Regional Education Officer (REO)') && $user->region_id) {
-            $query->whereHas('district', fn ($q) => $q->where('region_id', $user->region_id));
-            return;
-        }
-
-        if ($user->hasAnyRole(['District Education Officer (DEO)', 'District Academic Officer']) && $user->district_id) {
-            $query->where('district_id', $user->district_id);
-            return;
-        }
-
-        if ($user->hasAnyRole(['Head of School', 'Academic Master/Mistress', 'Subject Teacher']) && $user->school_id) {
-            $query->where('id', $user->school_id);
-            return;
-        }
-
-        $query->whereRaw('1 = 0');
+        return response()->json($query->orderBy('name')->get(['id', 'name', 'code', 'region_id']));
     }
 }

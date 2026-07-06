@@ -1,4 +1,4 @@
-# DERMS Frontend — Responsiveness Fix Plan
+# IDEMS Frontend — Responsiveness Fix Plan
 
 ## Tatizo Lililotambuliwa
 
@@ -28,15 +28,15 @@ Baada ya kukagua files zote za frontend, hivi ndivyo matatizo makuu:
 ## Mabadiliko Yaliyopendekezwa
 
 ### Component 1: `app.css` (MODIFY)
-#### [MODIFY] [app.css](file:///c:/xampp/htdocs/DERMS/resources/css/app.css)
+#### [MODIFY] [app.css](file:///c:/xampp/htdocs/IDEMS/resources/css/app.css)
 - Ongeza `scrollbar-hide` utility
 - Ongeza responsive base styles
-- Ongeza `.derms-table-wrap` — safe overflow container
-- Ongeza `.derms-page` — page wrapper yenye responsive padding
+- Ongeza `.idems-table-wrap` — safe overflow container
+- Ongeza `.idems-page` — page wrapper yenye responsive padding
 - Ongeza `touch-action: pan-x pan-y` kwa smooth mobile scroll
 
 ### Component 2: `routes.tsx` — Shell Layout (MODIFY)
-#### [MODIFY] [routes.tsx](file:///c:/xampp/htdocs/DERMS/resources/js/routes.tsx)
+#### [MODIFY] [routes.tsx](file:///c:/xampp/htdocs/IDEMS/resources/js/routes.tsx)
 **Kubadilisha Shell layout kabisa:**
 - Ongeza `sidebarOpen` state (default: false kwenye mobile, true kwenye desktop)
 - Ongeza hamburger menu button kwenye mobile top bar
@@ -52,7 +52,7 @@ Baada ya kukagua files zote za frontend, hivi ndivyo matatizo makuu:
 ```
 Mobile (< 768px):
 ┌─────────────────────────────┐
-│ [≡] DERMS    [User initials]│  ← TopBar (fixed)
+│ [≡] IDEMS    [User initials]│  ← TopBar (fixed)
 ├─────────────────────────────┤
 │                             │
 │    Main Content Area        │

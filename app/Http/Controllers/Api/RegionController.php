@@ -4,35 +4,38 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Domains\School\Models\Region;
+use App\Domains\School\Services\OrganizationCatalogService;
 use Illuminate\Http\Request;
+use App\Services\AccessScopeService;
 use App\Services\AuditLogger;
 
 class RegionController extends Controller
 {
     /** List all regions (with district/school counts). */
-    public function index(Request $request)
+    public function index(Request $request, OrganizationCatalogService $catalogService, AccessScopeService $scopeService)
     {
         $query = Region::withCount(['districts', 'schools']);
+        $scopeService->applyRegionScope($query, $request->user());
+
+        $regions = $query->orderBy('name')->get();
 
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('code', 'like', '%' . $request->search . '%');
-            });
+            $search = $request->search;
+            $regions = $regions->filter(fn ($region) => str_contains(strtolower($region->name . ' ' . $region->code), strtolower($search)))->values();
         }
 
-        return response()->json($query->orderBy('name')->get());
+        return response()->json($regions);
     }
 
     /** Create a new region. */
-    public function store(Request $request, AuditLogger $auditLogger)
+    public function store(Request $request, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:regions,name',
             'code' => 'required|string|max:10|unique:regions,code',
         ]);
 
-        $region = Region::create($validated);
+        $region = $catalogService->storeRegion($validated);
 
         $auditLogger->log(
             action: 'region.created',
@@ -56,7 +59,7 @@ class RegionController extends Controller
     }
 
     /** Update an existing region. */
-    public function update(Request $request, string $id, AuditLogger $auditLogger)
+    public function update(Request $request, string $id, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $region = Region::findOrFail($id);
 
@@ -66,14 +69,14 @@ class RegionController extends Controller
         ]);
 
         $old = $region->toArray();
-        $region->update($validated);
+        $region = $catalogService->updateRegion($region, $validated);
 
         $auditLogger->log(
             action: 'region.updated',
             description: 'Region updated: ' . $region->name,
             user: $request->user(),
             oldValues: $old,
-            newValues: $region->fresh()->toArray(),
+            newValues: $region->toArray(),
             request: $request
         );
 
@@ -81,16 +84,16 @@ class RegionController extends Controller
     }
 
     /** Soft-delete a region. */
-    public function destroy(string $id, AuditLogger $auditLogger)
+    public function destroy(string $id, AuditLogger $auditLogger, OrganizationCatalogService $catalogService)
     {
         $region = Region::withCount('districts')->findOrFail($id);
 
-        if ($region->districts_count > 0) {
-            return response()->json(['message' => 'Cannot delete region that has districts. Remove districts first.'], 422);
-        }
-
         $old = $region->toArray();
-        $region->delete();
+        try {
+            $catalogService->deleteRegion($region);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $auditLogger->log(
             action: 'region.deleted',

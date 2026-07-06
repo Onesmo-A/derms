@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Layers3, Plus, Pencil, Trash2, Search, School, RefreshCw, X, Check, MapPin } from 'lucide-react';
+import { useToastFeedback } from '@/hooks/use-toast-feedback';
 
 interface Region {
     id: string;
@@ -40,6 +42,13 @@ export default function DistrictsPage() {
     const [form, setForm] = useState<DistrictForm>(emptyForm);
     const [formErrors, setFormErrors] = useState<Partial<DistrictForm>>({});
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+    useToastFeedback({
+        error,
+        success,
+        clearError: () => setError(''),
+        clearSuccess: () => setSuccess(''),
+    });
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -197,14 +206,14 @@ export default function DistrictsPage() {
                             className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm focus:border-[#0F4C81] focus:outline-none focus:bg-white"
                         />
                     </div>
-                    <select
+                    <SearchableSelect
                         value={filterRegion}
-                        onChange={e => setFilterRegion(e.target.value)}
-                        className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none"
-                    >
-                        <option value="">All Regions</option>
-                        {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
+                        onValueChange={setFilterRegion}
+                        placeholder="All Regions"
+                        searchPlaceholder="Search region..."
+                        options={regions.map(r => ({ value: r.id, label: r.name }))}
+                        className="min-w-[220px]"
+                    />
                     <button onClick={fetchDistricts} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">
                         <RefreshCw className="h-4 w-4" /> Refresh
                     </button>
@@ -226,7 +235,7 @@ export default function DistrictsPage() {
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F4C81] border-t-transparent" />
                     </div>
                 ) : (
-                    <div className="derms-table-wrap rounded-none border-0 shadow-none">
+                    <div className="idems-table-wrap rounded-none border-0 shadow-none">
                         <table className="min-w-full divide-y divide-gray-100 text-sm">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -306,14 +315,14 @@ export default function DistrictsPage() {
                         <form onSubmit={handleSave} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700">Region <span className="text-red-500">*</span></label>
-                                <select
+                                <SearchableSelect
                                     value={form.region_id}
-                                    onChange={e => setForm(f => ({ ...f, region_id: e.target.value }))}
-                                    className={`mt-1 block w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/30 ${formErrors.region_id ? 'border-red-400' : 'border-gray-300'}`}
-                                >
-                                    <option value="">Select Region</option>
-                                    {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                </select>
+                                    onValueChange={(value) => setForm(f => ({ ...f, region_id: value }))}
+                                    placeholder="Select Region"
+                                    searchPlaceholder="Search region..."
+                                    options={regions.map(r => ({ value: r.id, label: r.name }))}
+                                    className="mt-1"
+                                />
                                 {formErrors.region_id && <p className="mt-1 text-xs text-red-600">{formErrors.region_id}</p>}
                             </div>
                             <div>

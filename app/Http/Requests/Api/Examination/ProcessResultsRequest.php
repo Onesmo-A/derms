@@ -14,7 +14,7 @@ class ProcessResultsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'class_level_id' => ['required', 'uuid', 'exists:class_levels,id'],
+            'class_level_id' => ['sometimes', 'nullable', 'uuid', 'exists:class_levels,id'],
         ];
     }
 }

@@ -4,17 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Domains\School\Models\AcademicYear;
+use App\Domains\School\Services\AcademicCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class AcademicYearController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(AcademicCatalogService $catalogService): JsonResponse
     {
-        return response()->json(AcademicYear::orderBy('start_date', 'desc')->get());
+        return response()->json($catalogService->listAcademicYears());
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, AcademicCatalogService $catalogService): JsonResponse
     {
         $data = $request->validate([
             'name'       => 'required|string|max:4',
@@ -23,11 +24,7 @@ class AcademicYearController extends Controller
             'is_active'  => 'boolean',
         ]);
 
-        if (!empty($data['is_active'])) {
-            AcademicYear::where('is_active', true)->update(['is_active' => false]);
-        }
-
-        $year = AcademicYear::create($data);
+        $year = $catalogService->storeAcademicYear($data);
         return response()->json($year, 201);
     }
 
@@ -36,7 +33,7 @@ class AcademicYearController extends Controller
         return response()->json(AcademicYear::findOrFail($id));
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(Request $request, $id, AcademicCatalogService $catalogService): JsonResponse
     {
         $year = AcademicYear::findOrFail($id);
         $data = $request->validate([
@@ -46,12 +43,7 @@ class AcademicYearController extends Controller
             'is_active'  => 'boolean',
         ]);
 
-        if (!empty($data['is_active'])) {
-            AcademicYear::where('id', '!=', $id)->where('is_active', true)->update(['is_active' => false]);
-        }
-
-        $year->update($data);
-        return response()->json($year);
+        return response()->json($catalogService->updateAcademicYear($year, $data));
     }
 
     public function destroy($id): JsonResponse

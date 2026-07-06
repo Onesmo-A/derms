@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Users2, UserPlus, FileSpreadsheet, BadgeCheck, ArrowUpCircle,
     ArrowRightLeft, Radar, ChartColumn, Search, RefreshCw, Download,
@@ -20,6 +21,7 @@ interface ClassLevel  { id: string; name: string; code?: string; numeric_level?:
 interface Examination { id: string; name: string; status: string; is_published?: boolean; academic_year_id?: string; }
 
 interface StudentRecord {
+    registration_display: string;
     id: string;
     registration_number: string;
     first_name: string;
@@ -36,6 +38,7 @@ interface StudentRecord {
     school?: SchoolItem;
     academicYear?: AcademicYear;
     classLevel?: ClassLevel;
+    class_level?: ClassLevel;
 }
 
 interface StudentStats {
@@ -77,6 +80,8 @@ const EMPTY_FORM = {
     gender: 'M', date_of_birth: '', parent_name: '', parent_phone: '',
     school_id: '', academic_year_id: '', current_class_level_id: '',
 };
+
+const resolveStudentClassLevel = (student: StudentRecord): ClassLevel | undefined => student.classLevel ?? student.class_level;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED UI HELPERS
@@ -146,55 +151,40 @@ const LocationSelector = ({
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Region {required && <span className="text-red-500">*</span>}
                 </label>
-                <div className="relative">
-                    <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                        value={selectedRegion}
-                        onChange={e => { onRegion(e.target.value); onDistrict(''); onSchool(''); }}
-                        required={required}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm focus:border-[#0F4C81] focus:outline-none focus:ring-1 focus:ring-[#0F4C81]"
-                    >
-                        <option value="">All Regions</option>
-                        {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                </div>
+                <SearchableSelect
+                    value={selectedRegion}
+                    onValueChange={(value) => { onRegion(value); onDistrict(''); onSchool(''); }}
+                    placeholder="All Regions"
+                    searchPlaceholder="Search region..."
+                    options={regions.map((r) => ({ value: r.id, label: r.name }))}
+                />
             </div>
             <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                     District {required && <span className="text-red-500">*</span>}
                 </label>
-                <div className="relative">
-                    <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                        value={selectedDistrict}
-                        onChange={e => { onDistrict(e.target.value); onSchool(''); }}
-                        required={required}
-                        disabled={!selectedRegion && required}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm focus:border-[#0F4C81] focus:outline-none focus:ring-1 focus:ring-[#0F4C81] disabled:opacity-50"
-                    >
-                        <option value="">All Districts</option>
-                        {filteredDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                </div>
+                <SearchableSelect
+                    value={selectedDistrict}
+                    onValueChange={(value) => { onDistrict(value); onSchool(''); }}
+                    disabled={!selectedRegion && required}
+                    placeholder="All Districts"
+                    searchPlaceholder="Search district..."
+                    options={filteredDistricts.map((d) => ({ value: d.id, label: d.name }))}
+                />
             </div>
             {showSchool && (
                 <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                         School {required && <span className="text-red-500">*</span>}
                     </label>
-                    <div className="relative">
-                        <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <select
-                            value={selectedSchool}
-                            onChange={e => onSchool(e.target.value)}
-                            required={required}
-                            disabled={!selectedDistrict && required}
-                            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm focus:border-[#0F4C81] focus:outline-none focus:ring-1 focus:ring-[#0F4C81] disabled:opacity-50"
-                        >
-                            <option value="">All Schools</option>
-                            {filteredSchools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
+                    <SearchableSelect
+                        value={selectedSchool}
+                        onValueChange={onSchool}
+                        disabled={!selectedDistrict && required}
+                        placeholder="All Schools"
+                        searchPlaceholder="Search school..."
+                        options={filteredSchools.map((s) => ({ value: s.id, label: s.name }))}
+                    />
                 </div>
             )}
         </div>
@@ -527,29 +517,41 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
                     selectedSchool={filterSchool}   onSchool={v  => { setFilterSchool(v);   setPage(1); }}
                 />
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <select value={filterYear} onChange={e => { setFilterYear(e.target.value); setPage(1); }}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                        <option value="">All Years</option>
-                        {academicYears.map((y: AcademicYear) => <option key={y.id} value={y.id}>{y.name}</option>)}
-                    </select>
-                    <select value={filterClass} onChange={e => { setFilterClass(e.target.value); setPage(1); }}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                        <option value="">All Classes</option>
-                        {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <select value={filterGender} onChange={e => { setFilterGender(e.target.value); setPage(1); }}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                        <option value="">All Genders</option>
-                        <option value="M">Male</option>
-                        <option value="F">Female</option>
-                    </select>
-                    <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                        <option value="">All Statuses</option>
-                        <option value="active">Active</option>
-                        <option value="transferred">Transferred</option>
-                        <option value="completed">Completed</option>
-                    </select>
+                    <SearchableSelect
+                        value={filterYear}
+                        onValueChange={(value) => { setFilterYear(value); setPage(1); }}
+                        placeholder="All Years"
+                        searchPlaceholder="Search year..."
+                        options={academicYears.map((y: AcademicYear) => ({ value: y.id, label: y.name }))}
+                    />
+                    <SearchableSelect
+                        value={filterClass}
+                        onValueChange={(value) => { setFilterClass(value); setPage(1); }}
+                        placeholder="All Classes"
+                        searchPlaceholder="Search class..."
+                        options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                    />
+                    <SearchableSelect
+                        value={filterGender}
+                        onValueChange={(value) => { setFilterGender(value); setPage(1); }}
+                        placeholder="All Genders"
+                        searchPlaceholder="Search gender..."
+                        options={[
+                            { value: 'M', label: 'Male' },
+                            { value: 'F', label: 'Female' },
+                        ]}
+                    />
+                    <SearchableSelect
+                        value={filterStatus}
+                        onValueChange={(value) => { setFilterStatus(value); setPage(1); }}
+                        placeholder="All Statuses"
+                        searchPlaceholder="Search status..."
+                        options={[
+                            { value: 'active', label: 'Active' },
+                            { value: 'transferred', label: 'Transferred' },
+                            { value: 'completed', label: 'Completed' },
+                        ]}
+                    />
                 </div>
                 <div className="mt-3 flex gap-2">
                     <div className="relative flex-1">
@@ -557,7 +559,7 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
                         <input
                             value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1); }}
-                            placeholder="Search by name or registration number..."
+                            placeholder="Search by name or reg# e.g. S0101/0001"
                             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm focus:border-[#0F4C81] focus:outline-none focus:ring-1 focus:ring-[#0F4C81]"
                         />
                     </div>
@@ -583,7 +585,7 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
                         <p className="text-xs">Try adjusting your filters</p>
                     </div>
                 ) : (
-                    <div className="derms-table-wrap rounded-none border-0 shadow-none">
+                    <div className="idems-table-wrap rounded-none border-0 shadow-none">
                         <table className="min-w-full divide-y divide-slate-100">
                             <thead className="bg-slate-50">
                                 <tr>
@@ -604,7 +606,7 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
                                                 {s.gender}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-slate-600">{s.classLevel?.name ?? '—'}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-600">{resolveStudentClassLevel(s)?.name ?? '—'}</td>
                                         <td className="px-4 py-3 text-sm text-slate-600 max-w-[160px] truncate">{s.school?.name ?? '—'}</td>
                                         <td className="px-4 py-3 text-sm text-slate-500">{s.school?.district?.name ?? '—'}</td>
                                         <td className="px-4 py-3 text-sm text-slate-500">{s.school?.district?.region?.name ?? '—'}</td>
@@ -671,20 +673,30 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Gender</label>
-                                    <select value={editStudent.gender} onChange={e => setEditStudent({ ...editStudent, gender: e.target.value as 'M' | 'F' })}
-                                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                        <option value="M">Male</option>
-                                        <option value="F">Female</option>
-                                    </select>
+                                    <SearchableSelect
+                                        value={editStudent.gender}
+                                        onValueChange={(value) => setEditStudent({ ...editStudent, gender: value as 'M' | 'F' })}
+                                        placeholder="Select Gender"
+                                        searchPlaceholder="Search gender..."
+                                        options={[
+                                            { value: 'M', label: 'Male' },
+                                            { value: 'F', label: 'Female' },
+                                        ]}
+                                    />
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Status</label>
-                                    <select value={editStudent.status ?? 'active'} onChange={e => setEditStudent({ ...editStudent, status: e.target.value })}
-                                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                        <option value="active">Active</option>
-                                        <option value="transferred">Transferred</option>
-                                        <option value="completed">Completed</option>
-                                    </select>
+                                    <SearchableSelect
+                                        value={editStudent.status ?? 'active'}
+                                        onValueChange={(value) => setEditStudent({ ...editStudent, status: value })}
+                                        placeholder="Select Status"
+                                        searchPlaceholder="Search status..."
+                                        options={[
+                                            { value: 'active', label: 'Active' },
+                                            { value: 'transferred', label: 'Transferred' },
+                                            { value: 'completed', label: 'Completed' },
+                                        ]}
+                                    />
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
@@ -725,10 +737,132 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
 // ═════════════════════════════════════════════════════════════════════════════
 function TabRegisterStudent({ headers, regions, districts, schools, academicYears, classLevels, onToast, onSuccess }: any) {
     const [form, setForm]   = useState({ ...EMPTY_FORM });
+    const [registrationSuffix, setRegistrationSuffix] = useState('');
     const [saving, setSaving] = useState(false);
     const [error,  setError]  = useState('');
+    const [registrationCheck, setRegistrationCheck] = useState<{ state: 'idle' | 'checking' | 'available' | 'taken' | 'error'; message: string }>({ state: 'idle', message: '' });
+    const [phoneCheck, setPhoneCheck] = useState<{ state: 'idle' | 'checking' | 'available' | 'taken' | 'error'; message: string }>({ state: 'idle', message: '' });
 
     const set = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
+    const selectedSchool = schools.find((school: SchoolItem) => school.id === form.school_id);
+    const registrationPrefix = selectedSchool?.registration_number?.trim()
+        ? `${selectedSchool.registration_number.trim()}`
+        : '';
+    const displaySuffix = registrationSuffix.replace(/\D+/g, '').slice(0, 4);
+    const previewRegistrationNumber = registrationPrefix
+        ? `${registrationPrefix}/${(displaySuffix || '0001').padStart(4, '0')}`
+        : 'Select school first';
+
+    const handleRegistrationSuffixChange = (value: string) => {
+        const normalized = value.replace(/\D+/g, '').slice(0, 4);
+        setRegistrationSuffix(normalized);
+        set('registration_number', normalized ? `${registrationPrefix}/${normalized.padStart(4, '0')}` : '');
+    };
+
+    useEffect(() => {
+        setRegistrationCheck({ state: 'idle', message: '' });
+    }, [registrationPrefix, form.current_class_level_id, form.academic_year_id]);
+
+    useEffect(() => {
+        const suffix = displaySuffix;
+
+        if (!form.school_id || !form.current_class_level_id || !form.academic_year_id || !registrationPrefix || !suffix) {
+            setRegistrationCheck({ state: 'idle', message: '' });
+            return;
+        }
+
+        if (suffix.length < 4) {
+            setRegistrationCheck({ state: 'idle', message: 'Type 4 digits to check availability.' });
+            return;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            setRegistrationCheck({ state: 'checking', message: 'Checking registration number...' });
+            try {
+                const params = new URLSearchParams({
+                    school_id: form.school_id,
+                    academic_year_id: form.academic_year_id,
+                    current_class_level_id: form.current_class_level_id,
+                    registration_suffix: suffix,
+                });
+
+                const res = await fetch(`/api/v1/students/validate?${params.toString()}`, {
+                    headers,
+                    signal: controller.signal,
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message ?? 'Registration validation failed.');
+
+                const result = data.registration_number;
+                setRegistrationCheck(
+                    result?.exists
+                        ? { state: 'taken', message: result.message ?? 'This registration number already exists.' }
+                        : { state: 'available', message: result.message ?? 'This registration number is available.' },
+                );
+            } catch (e: any) {
+                if (e.name === 'AbortError') return;
+                setRegistrationCheck({ state: 'error', message: e.message ?? 'Could not validate registration number.' });
+            }
+        }, 400);
+
+        return () => {
+            controller.abort();
+            window.clearTimeout(timer);
+        };
+    }, [displaySuffix, form.school_id, form.current_class_level_id, form.academic_year_id, headers, registrationPrefix]);
+
+    useEffect(() => {
+        const phone = form.parent_phone.replace(/\D+/g, '');
+
+        if (!form.school_id || !phone) {
+            setPhoneCheck({ state: 'idle', message: '' });
+            return;
+        }
+
+        if (phone.length < 9) {
+            setPhoneCheck({ state: 'idle', message: 'Keep typing the phone number to check it live.' });
+            return;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            setPhoneCheck({ state: 'checking', message: 'Checking phone number...' });
+            try {
+                const params = new URLSearchParams({
+                    school_id: form.school_id || '',
+                    parent_phone: phone,
+                });
+
+                const res = await fetch(`/api/v1/students/validate?${params.toString()}`, {
+                    headers,
+                    signal: controller.signal,
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message ?? 'Phone validation failed.');
+
+                const result = data.parent_phone;
+                setPhoneCheck(
+                    result?.exists
+                        ? { state: 'taken', message: result.message ?? 'This phone number already exists.' }
+                        : { state: 'available', message: result.message ?? 'This phone number is available.' },
+                );
+            } catch (e: any) {
+                if (e.name === 'AbortError') return;
+                setPhoneCheck({ state: 'error', message: e.message ?? 'Could not validate phone number.' });
+            }
+        }, 400);
+
+        return () => {
+            controller.abort();
+            window.clearTimeout(timer);
+        };
+    }, [form.parent_phone, form.school_id, headers]);
+
+    const resetForm = () => {
+        setForm({ ...EMPTY_FORM });
+        setRegistrationSuffix('');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -736,16 +870,21 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
         if (!form.school_id)              { setError('Please select a school.'); return; }
         if (!form.academic_year_id)       { setError('Please select an academic year.'); return; }
         if (!form.current_class_level_id) { setError('Please select a class level.'); return; }
+        if (!registrationPrefix)          { setError('Please select a school first.'); return; }
+        if (!displaySuffix)               { setError('Please enter the student registration suffix.'); return; }
+        if (registrationCheck.state === 'taken') { setError(registrationCheck.message || 'Registration number already exists.'); return; }
 
         setSaving(true);
         try {
+            const registration_number = `${registrationPrefix}/${displaySuffix.padStart(4, '0')}`;
             const res = await fetch('/api/v1/students', {
                 method: 'POST', headers,
                 body: JSON.stringify({
                     school_id:              form.school_id,
                     academic_year_id:       form.academic_year_id,
                     current_class_level_id: form.current_class_level_id,
-                    registration_number:    form.registration_number,
+                    registration_number,
+                    registration_suffix:    displaySuffix,
                     first_name:             form.first_name,
                     middle_name:            form.middle_name || null,
                     last_name:              form.last_name,
@@ -759,6 +898,7 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
             const data = await res.json();
             if (!res.ok) throw new Error(data.message ?? 'Registration failed.');
             onToast('success', `Student ${form.first_name} ${form.last_name} registered successfully.`);
+            resetForm();
             onSuccess();
         } catch (e: any) { setError(e.message); }
         finally { setSaving(false); }
@@ -784,27 +924,31 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
                         <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">School Placement</h3>
                         <LocationSelector
                             regions={regions} districts={districts} schools={schools}
-                            selectedRegion={selRegion}     onRegion={v => { setSelRegion(v); setSelDistrict(''); set('school_id', ''); }}
-                            selectedDistrict={selDistrict} onDistrict={v => { setSelDistrict(v); set('school_id', ''); }}
-                            selectedSchool={form.school_id} onSchool={v => set('school_id', v)}
+                            selectedRegion={selRegion}     onRegion={v => { setSelRegion(v); setSelDistrict(''); set('school_id', ''); set('registration_number', ''); setRegistrationSuffix(''); }}
+                            selectedDistrict={selDistrict} onDistrict={v => { setSelDistrict(v); set('school_id', ''); set('registration_number', ''); setRegistrationSuffix(''); }}
+                            selectedSchool={form.school_id} onSchool={v => { set('school_id', v); set('registration_number', ''); setRegistrationSuffix(''); }}
                             required
                         />
                         <div className="mt-3 grid grid-cols-2 gap-3">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Academic Year *</label>
-                                <select value={form.academic_year_id} onChange={e => set('academic_year_id', e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Select Academic Year</option>
-                                    {academicYears.map((y: AcademicYear) => <option key={y.id} value={y.id}>{y.name}{y.is_active ? ' (Active)' : ''}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={form.academic_year_id}
+                                    onValueChange={(value) => set('academic_year_id', value)}
+                                    placeholder="Select Academic Year"
+                                    searchPlaceholder="Search academic year..."
+                                    options={academicYears.map((y: AcademicYear) => ({ value: y.id, label: `${y.name}${y.is_active ? ' (Active)' : ''}` }))}
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Class Level *</label>
-                                <select value={form.current_class_level_id} onChange={e => set('current_class_level_id', e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Select Class Level</option>
-                                    {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={form.current_class_level_id}
+                                    onValueChange={(value) => { set('current_class_level_id', value); set('registration_number', ''); setRegistrationSuffix(''); }}
+                                    placeholder="Select Class Level"
+                                    searchPlaceholder="Search class level..."
+                                    options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                                />
                             </div>
                         </div>
                     </div>
@@ -817,17 +961,47 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Registration Number *</label>
-                                <input value={form.registration_number} onChange={e => set('registration_number', e.target.value)} required
-                                    placeholder="e.g. S001/2026"
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none" />
-                            </div>
+                                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-[#0F4C81]">
+                                        <div className="flex items-center">
+                                        <span className="shrink-0 border-r border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-600">
+                                            {registrationPrefix || 'Select school'}
+                                        </span>
+                                        <input
+                                            value={displaySuffix}
+                                            onChange={e => handleRegistrationSuffixChange(e.target.value)}
+                                            required
+                                            disabled={!registrationPrefix}
+                                            inputMode="numeric"
+                                            maxLength={4}
+                                            placeholder={registrationPrefix ? '0001' : 'Select school first'}
+                                            className="w-full border-0 px-3 py-2.5 text-sm outline-none focus:ring-0 disabled:bg-slate-50"
+                                        />
+                                        </div>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-500">Preview: <span className="font-mono font-semibold text-slate-700">{previewRegistrationNumber}</span></p>
+                                    {registrationCheck.message && (
+                                        <p className={`mt-1 text-xs font-medium ${
+                                            registrationCheck.state === 'taken' ? 'text-red-600' :
+                                            registrationCheck.state === 'available' ? 'text-emerald-600' :
+                                            registrationCheck.state === 'checking' ? 'text-slate-500' :
+                                            registrationCheck.state === 'error' ? 'text-amber-600' : 'text-slate-500'
+                                        }`}>
+                                            {registrationCheck.message}
+                                        </p>
+                                    )}
+                                </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Gender *</label>
-                                <select value={form.gender} onChange={e => set('gender', e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="M">Male</option>
-                                    <option value="F">Female</option>
-                                </select>
+                                <SearchableSelect
+                                    value={form.gender}
+                                    onValueChange={(value) => set('gender', value)}
+                                    placeholder="Select Gender"
+                                    searchPlaceholder="Search gender..."
+                                    options={[
+                                        { value: 'M', label: 'Male' },
+                                        { value: 'F', label: 'Female' },
+                                    ]}
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">First Name *</label>
@@ -869,15 +1043,25 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Parent Phone *</label>
-                                <input value={form.parent_phone} onChange={e => set('parent_phone', e.target.value)} required
+                                <input value={form.parent_phone} onChange={e => set('parent_phone', e.target.value)} required inputMode="tel"
                                     placeholder="0712345678"
                                     className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none" />
+                                {phoneCheck.message && (
+                                    <p className={`mt-1 text-xs font-medium ${
+                                        phoneCheck.state === 'taken' ? 'text-red-600' :
+                                        phoneCheck.state === 'available' ? 'text-emerald-600' :
+                                        phoneCheck.state === 'checking' ? 'text-slate-500' :
+                                        phoneCheck.state === 'error' ? 'text-amber-600' : 'text-slate-500'
+                                    }`}>
+                                        {phoneCheck.message}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">
-                        <button type="button" onClick={() => setForm({ ...EMPTY_FORM })}
+                        <button type="button" onClick={resetForm}
                             className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                             Reset
                         </button>
@@ -914,7 +1098,12 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
     const handleDownloadTemplate = async () => {
         setDownloadingTpl(true);
         try {
-            const res = await fetch('/api/v1/students/template?format=csv', {
+            const params = new URLSearchParams();
+            if (selSchool) params.set('school_id', selSchool);
+            if (selYear) params.set('academic_year_id', selYear);
+            if (selClass) params.set('current_class_level_id', selClass);
+            const query = params.toString() ? `?${params.toString()}` : '';
+            const res = await fetch(`/api/v1/students/template${query}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Download failed');
@@ -922,19 +1111,19 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
-            a.download = `DERMS_Student_Import_Template_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.download = `IDEMS_Student_Import_Template_${new Date().toISOString().slice(0, 10)}.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
-            onToast('success', 'Template downloaded. Fill it and return to import.');
+            onToast('success', 'Excel template downloaded. Fill it and return to import.');
         } catch { onToast('error', 'Failed to download template.'); }
         finally { setDownloadingTpl(false); }
     };
 
     const handleFileSelect = (selected: File) => {
-        const allowed = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/plain'];
+        const allowed = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv', 'text/plain'];
         const ext     = selected.name.split('.').pop()?.toLowerCase();
         if (!allowed.includes(selected.type) && !['csv', 'xlsx', 'xls'].includes(ext ?? '')) {
-            onToast('error', 'Only CSV and Excel files are allowed.'); return;
+            onToast('error', 'Only Excel or CSV files are allowed.'); return;
         }
         setFile(selected);
         setPreview(null);
@@ -981,7 +1170,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            onToast('success', data.message);
+            onToast('success', data.message ?? 'Import completed successfully.');
             setStep(1); setFile(null); setPreview(null); setSelSchool(''); setSelYear(''); setSelClass('');
         } catch (e: any) { onToast('error', e.message); }
         finally { setImporting(false); }
@@ -1029,19 +1218,23 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                     <div className="mt-3 grid grid-cols-2 gap-3">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">Academic Year *</label>
-                            <select value={selYear} onChange={e => setSelYear(e.target.value)} required
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                <option value="">Select Academic Year</option>
-                                {academicYears.map((y: AcademicYear) => <option key={y.id} value={y.id}>{y.name}{y.is_active ? ' (Active)' : ''}</option>)}
-                            </select>
+                            <SearchableSelect
+                                value={selYear}
+                                onValueChange={setSelYear}
+                                placeholder="Select Academic Year"
+                                searchPlaceholder="Search academic year..."
+                                options={academicYears.map((y: AcademicYear) => ({ value: y.id, label: `${y.name}${y.is_active ? ' (Active)' : ''}` }))}
+                            />
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">Class Level *</label>
-                            <select value={selClass} onChange={e => setSelClass(e.target.value)} required
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                <option value="">Select Class Level</option>
-                                {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                value={selClass}
+                                onValueChange={setSelClass}
+                                placeholder="Select Class Level"
+                                searchPlaceholder="Search class level..."
+                                options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                            />
                         </div>
                     </div>
                     <div className="mt-4 flex justify-end">
@@ -1059,7 +1252,14 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                     <h3 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-900">
                         <FileDown className="h-4 w-4 text-[#0F4C81]" /> Step 2: Download Official Template
                     </h3>
-                    <Alert type="info" message="Download the official DERMS template below. Do NOT add or remove columns. Only fill in the data rows. Column headers must remain exactly as provided." />
+                    <Alert type="info" message="Download the official IDEMS Excel template below. Do NOT add or remove columns. Only fill the unlocked cells." />
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <span className="font-semibold text-slate-800">Current scope:</span>{' '}
+                        {selSchool ? 'School selected' : 'No school'} · {selYear ? 'Academic year selected' : 'No academic year'} · {selClass ? 'Class level selected' : 'No class level'}
+                        <div className="mt-1 text-[11px] text-slate-500">
+                            Student_reg is scoped to the selected school, class and academic year. The same suffix can repeat in different classes, but not within the same school/class/year combination.
+                        </div>
+                    </div>
                     <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                         <div className="border-b border-slate-200 bg-white px-4 py-3">
                             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Template Structure</p>
@@ -1068,7 +1268,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                             <table className="min-w-full text-xs">
                                 <thead>
                                     <tr>
-                                        {['registration_number *', 'first_name *', 'middle_name', 'last_name *', 'gender * (M/F)', 'date_of_birth (YYYY-MM-DD)', 'parent_name', 'parent_phone *'].map(h => (
+                                        {['School_reg (Leave blank)', 'Student_reg *', 'first_name *', 'middle_name', 'last_name *', 'gender * (M/F)', 'date_of_birth (YYYY-MM-DD)', 'parent_name', 'parent_phone *'].map(h => (
                                             <th key={h} className={`whitespace-nowrap rounded px-3 py-1.5 text-left font-bold ${h.includes('*') ? 'bg-[#0F4C81]/10 text-[#0F4C81]' : 'bg-slate-200 text-slate-600'}`}>
                                                 {h}
                                             </th>
@@ -1076,9 +1276,9 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {[
-                                        ['S001/2026', 'Amina', 'Juma', 'Hassan', 'F', '2009-04-10', 'Juma Hassan', '0712345678'],
-                                        ['S002/2026', 'John',  '',    'Mwalimu','M', '2008-11-22', 'Peter Mwalimu','0756789012'],
+                                    {[ 
+                                        ['P0106', '0001', 'Amina', 'Juma', 'Hassan', 'F', '2009-04-10', 'Juma Hassan', '0712345678'],
+                                        ['P0106', '0002', 'John',  '',    'Mwalimu','M', '2008-11-22', 'Peter Mwalimu','0756789012'],
                                     ].map((row, ri) => (
                                         <tr key={ri} className="border-t border-slate-100">
                                             {row.map((cell, ci) => (
@@ -1095,7 +1295,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                         <button onClick={handleDownloadTemplate} disabled={downloadingTpl}
                             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50">
                             {downloadingTpl ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
-                            Download DERMS Template (CSV)
+                            Download IDEMS Template (XLSX)
                         </button>
                         <button onClick={() => setStep(3)} className="rounded-xl bg-[#0F4C81] px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#0c3c66]">
                             Already have file → Continue
@@ -1174,7 +1374,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                         <table className="min-w-full divide-y divide-slate-100 text-sm">
                             <thead className="bg-slate-50">
                                 <tr>
-                                    {['Row', 'Reg#', 'First Name', 'Middle', 'Last Name', 'Gender', 'DOB', 'Parent Phone', 'Valid'].map(h => (
+                                    {['Row', 'School_reg', 'Student_reg', 'First Name', 'Middle', 'Last Name', 'Gender', 'DOB', 'Parent Phone', 'Valid'].map(h => (
                                         <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                                     ))}
                                 </tr>
@@ -1183,7 +1383,8 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                                 {[...(preview.valid_rows ?? []), ...(preview.invalid_rows ?? [])].slice(0, 30).map((r: ImportRow) => (
                                     <tr key={r._row} className={r._valid ? 'bg-white' : 'bg-red-50'}>
                                         <td className="px-3 py-2 text-xs text-slate-400">{r._row}</td>
-                                        <td className="px-3 py-2 font-mono text-xs">{r.registration_number}</td>
+                                        <td className="px-3 py-2 font-mono text-xs">{(r as any).registration_prefix}</td>
+                                        <td className="px-3 py-2 font-mono text-xs">{(r as any).registration_suffix}</td>
                                         <td className="px-3 py-2">{r.first_name}</td>
                                         <td className="px-3 py-2 text-slate-400">{r.middle_name ?? '—'}</td>
                                         <td className="px-3 py-2">{r.last_name}</td>
@@ -1230,14 +1431,30 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
 
     const activeExams = examinations.filter((e: Examination) => ['draft','registration_open'].includes(e.status));
 
+    useEffect(() => {
+        const selectedExam = examinations.find((exam: Examination) => exam.id === selExam);
+        const targetClassLevelId = selectedExam?.target_class_level_id
+            || selectedExam?.targetClassLevel?.id
+            || selectedExam?.classLevels?.[0]?.id
+            || '';
+
+        if (targetClassLevelId && targetClassLevelId !== selClass) {
+            setSelClass(targetClassLevelId);
+        }
+    }, [examinations, selExam, selClass]);
+
     const fetchEligible = async () => {
         if (!selSchool || !selExam || !selClass) { onToast('error', 'Select examination, school and class level.'); return; }
         setLoading(true);
         try {
-            const p = new URLSearchParams({ school_id: selSchool, current_class_level_id: selClass, per_page: '200' });
-            const res  = await fetch(`/api/v1/students?${p}`, { headers });
+            setSelected([]);
+            const p = new URLSearchParams({ school_id: selSchool, class_level_id: selClass });
+            const res  = await fetch(`/api/v1/examinations/${selExam}/eligible-students?${p}`, { headers });
             const data = await res.json();
-            setStudents(data.data ?? []);
+            setStudents(Array.isArray(data) ? data : []);
+            if ((Array.isArray(data) ? data.length : 0) === 0) {
+                onToast('info', 'No eligible students found for this exam, school and class.');
+            }
         } catch { onToast('error', 'Failed to load students.'); }
         finally { setLoading(false); }
     };
@@ -1254,8 +1471,9 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            onToast('success', `${selected.length} candidates registered successfully.`);
+            onToast('success', data.message ?? `${selected.length} candidates registered successfully.`);
             setSelected([]);
+            fetchEligible();
         } catch (e: any) { onToast('error', e.message); }
         finally { setRegistering(false); }
     };
@@ -1269,11 +1487,17 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
                 <div className="space-y-3">
                     <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Select Examination *</label>
-                        <select value={selExam} onChange={e => setSelExam(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                            <option value="">— Choose Active Examination —</option>
-                            {activeExams.map((e: Examination) => <option key={e.id} value={e.id}>{e.name} ({e.status})</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selExam}
+                            onValueChange={setSelExam}
+                            placeholder="Choose Active Examination"
+                            searchPlaceholder="Search examination..."
+                            options={activeExams.map((e: Examination) => ({
+                                value: e.id,
+                                label: `${e.name} (${e.status})`,
+                            }))}
+                            className="mt-1"
+                        />
                         {examinations.length === 0 && <p className="mt-1 text-xs text-amber-600">No examinations found. Create one in Examinations Management first.</p>}
                     </div>
                     <LocationSelector
@@ -1284,11 +1508,14 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
                     />
                     <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">Class Level *</label>
-                        <select value={selClass} onChange={e => setSelClass(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-[#0F4C81] focus:outline-none">
-                            <option value="">Select Class Level</option>
-                            {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            value={selClass}
+                            onValueChange={setSelClass}
+                            placeholder="Select Class Level"
+                            searchPlaceholder="Search class level..."
+                            options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                            className="mt-1"
+                        />
                     </div>
                     <button onClick={fetchEligible} disabled={loading}
                         className="flex items-center gap-2 rounded-xl bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#0c3c66] disabled:opacity-50">
@@ -1411,19 +1638,23 @@ function TabPromotions({ headers, regions, districts, schools, academicYears, cl
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Academic Year</label>
-                                <select value={fromYear} onChange={e => setFromYear(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Any Year</option>
-                                    {academicYears.map((y: AcademicYear) => <option key={y.id} value={y.id}>{y.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={fromYear}
+                                    onValueChange={setFromYear}
+                                    placeholder="Any Year"
+                                    searchPlaceholder="Search year..."
+                                    options={academicYears.map((y: AcademicYear) => ({ value: y.id, label: y.name }))}
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Class Level *</label>
-                                <select value={fromClass} onChange={e => setFromClass(e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Select Class</option>
-                                    {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={fromClass}
+                                    onValueChange={setFromClass}
+                                    placeholder="Select Class"
+                                    searchPlaceholder="Search class..."
+                                    options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                                />
                             </div>
                         </div>
                         <button onClick={fetchStudents} disabled={loading}
@@ -1436,19 +1667,23 @@ function TabPromotions({ headers, regions, districts, schools, academicYears, cl
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">New Academic Year *</label>
-                                <select value={toYear} onChange={e => setToYear(e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Select Year</option>
-                                    {academicYears.map((y: AcademicYear) => <option key={y.id} value={y.id}>{y.name}{y.is_active ? ' (Active)' : ''}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={toYear}
+                                    onValueChange={setToYear}
+                                    placeholder="Select Year"
+                                    searchPlaceholder="Search year..."
+                                    options={academicYears.map((y: AcademicYear) => ({ value: y.id, label: `${y.name}${y.is_active ? ' (Active)' : ''}` }))}
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">New Class Level *</label>
-                                <select value={toClass} onChange={e => setToClass(e.target.value)} required
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#0F4C81] focus:outline-none">
-                                    <option value="">Select Class</option>
-                                    {classLevels.map((c: ClassLevel) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={toClass}
+                                    onValueChange={setToClass}
+                                    placeholder="Select Class"
+                                    searchPlaceholder="Search class..."
+                                    options={classLevels.map((c: ClassLevel) => ({ value: c.id, label: c.name }))}
+                                />
                             </div>
                         </div>
                         <button onClick={handlePromote} disabled={selected.length === 0 || !toYear || !toClass || promoting}
@@ -1486,7 +1721,7 @@ function TabPromotions({ headers, regions, districts, schools, academicYears, cl
                                     <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{s.registration_number}</td>
                                     <td className="px-4 py-2.5 font-semibold text-slate-900">{s.first_name} {s.last_name}</td>
                                     <td className="px-4 py-2.5"><span className={`font-bold ${s.gender === 'M' ? 'text-blue-600' : 'text-pink-600'}`}>{s.gender}</span></td>
-                                    <td className="px-4 py-2.5 text-slate-600">{s.classLevel?.name}</td>
+                                    <td className="px-4 py-2.5 text-slate-600">{resolveStudentClassLevel(s)?.name ?? '—'}</td>
                                     <td className="px-4 py-2.5 text-slate-500">{s.school?.name}</td>
                                 </tr>
                             ))}
@@ -1553,7 +1788,7 @@ function TabTransfers({ headers, regions, districts, schools, onToast }: any) {
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <input value={search} onChange={e => setSearch(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                                placeholder="Search by name or registration number..."
+                                placeholder="Search by name or reg# e.g. P0104/0001"
                                 className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm focus:border-[#0F4C81] focus:outline-none" />
                         </div>
                         <button onClick={handleSearch} disabled={searching}
@@ -1568,7 +1803,9 @@ function TabTransfers({ headers, regions, districts, schools, onToast }: any) {
                                     className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${selected?.id === s.id ? 'bg-blue-50' : ''}`}>
                                     <div>
                                         <span className="font-semibold text-slate-900">{s.first_name} {s.last_name}</span>
-                                        <span className="ml-2 text-xs text-slate-500">{s.registration_number}</span>
+                                        <span className="ml-2 text-xs text-slate-500">{s.registration_display || s.registration_number}</span>
+                                        <span className="ml-2 text-xs text-slate-400">| {resolveStudentClassLevel(s)?.name ?? '—'}</span>
+                                        <span className="ml-2 text-xs text-slate-400">| {s.academicYear?.name ?? '—'}</span>
                                     </div>
                                     <span className="text-xs text-slate-400">{s.school?.name}</span>
                                 </button>
@@ -1582,9 +1819,10 @@ function TabTransfers({ headers, regions, districts, schools, onToast }: any) {
                         <p className="text-xs font-bold uppercase text-blue-600 mb-2">Selected Student</p>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                             <div><span className="text-slate-500">Name:</span> <span className="font-semibold">{selected.first_name} {selected.last_name}</span></div>
-                            <div><span className="text-slate-500">Reg#:</span> <span className="font-mono text-xs">{selected.registration_number}</span></div>
+                            <div><span className="text-slate-500">Reg#:</span> <span className="font-mono text-xs">{selected.registration_display || selected.registration_number}</span></div>
                             <div><span className="text-slate-500">Current School:</span> <span className="font-semibold">{selected.school?.name ?? '—'}</span></div>
-                            <div><span className="text-slate-500">Class:</span> <span className="font-semibold">{selected.classLevel?.name ?? '—'}</span></div>
+                            <div><span className="text-slate-500">Class:</span> <span className="font-semibold">{resolveStudentClassLevel(selected)?.name ?? '—'}</span></div>
+                            <div><span className="text-slate-500">Academic Year:</span> <span className="font-semibold">{selected.academicYear?.name ?? '—'}</span></div>
                         </div>
                     </div>
                 )}
@@ -1762,7 +2000,7 @@ function TabPerformance({ headers }: any) {
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input value={search} onChange={e => setSearch(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                            placeholder="Search student by name or registration number..."
+                            placeholder="Search student by name or reg# e.g. S0101/0001"
                             className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm focus:border-[#0F4C81] focus:outline-none" />
                     </div>
                     <button onClick={handleSearch} disabled={searching}
@@ -1777,7 +2015,7 @@ function TabPerformance({ headers }: any) {
                                 className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-slate-50">
                                 <div>
                                     <span className="font-semibold text-slate-900">{s.first_name} {s.last_name}</span>
-                                    <span className="ml-2 font-mono text-xs text-slate-500">{s.registration_number}</span>
+                                    <span className="ml-2 font-mono text-xs text-slate-500">{s.registration_display || s.registration_number}</span>
                                 </div>
                                 <span className="text-xs text-slate-400">{s.school?.name}</span>
                             </button>
@@ -1795,7 +2033,7 @@ function TabPerformance({ headers }: any) {
                             </div>
                             <div>
                                 <p className="font-bold text-white">{selected.first_name} {selected.middle_name ? selected.middle_name + ' ' : ''}{selected.last_name}</p>
-                                <p className="text-xs text-blue-200">{selected.registration_number} · {selected.school?.name}</p>
+                                <p className="text-xs text-blue-200">{selected.registration_display || selected.registration_number} | {selected.school?.name}</p>
                             </div>
                         </div>
                     </div>

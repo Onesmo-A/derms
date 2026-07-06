@@ -12,12 +12,21 @@ class SchoolStoreRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('registration_number')) {
+            $this->merge([
+                'registration_number' => strtoupper(trim((string) $this->input('registration_number'))),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [
             'district_id' => ['required', 'uuid', 'exists:districts,id'],
             'name' => ['required', 'string', 'max:150'],
-            'registration_number' => ['required', 'string', 'max:50', 'unique:schools,registration_number'],
+            'registration_number' => ['required', 'string', 'max:50', 'regex:/^[SP]\d{4}$/', 'unique:schools,registration_number'],
             'type' => ['required', Rule::in(['government', 'private'])],
             'level' => ['required', Rule::in(['primary', 'secondary'])],
             'phone_number' => ['nullable', 'string', 'max:20'],

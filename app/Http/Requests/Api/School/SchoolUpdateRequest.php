@@ -12,6 +12,15 @@ class SchoolUpdateRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('registration_number')) {
+            $this->merge([
+                'registration_number' => strtoupper(trim((string) $this->input('registration_number'))),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         $schoolId = $this->route('id');
@@ -24,6 +33,7 @@ class SchoolUpdateRequest extends FormRequest
                 'required',
                 'string',
                 'max:50',
+                'regex:/^[SP]\d{4}$/',
                 Rule::unique('schools', 'registration_number')->ignore($schoolId),
             ],
             'type' => ['sometimes', 'required', Rule::in(['government', 'private'])],

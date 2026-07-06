@@ -14,9 +14,15 @@ use Illuminate\Support\Collection;
 
 class ReportingDataService
 {
-    public function getMeritList(Examination $exam, string $classLevelId, ?string $schoolId = null): Collection
+    public function getMeritList(
+        Examination $exam,
+        string $classLevelId,
+        ?string $schoolId = null,
+        ?string $districtId = null,
+        ?string $regionId = null
+    ): Collection
     {
-        return $this->meritListQuery($exam->id, $classLevelId, $schoolId)
+        return $this->meritListQuery($exam->id, $classLevelId, $schoolId, $districtId, $regionId)
             ->get();
     }
 
@@ -149,11 +155,12 @@ class ReportingDataService
             'candidate' => [
                 'name' => $registration->student->first_name . ' ' . $registration->student->last_name,
                 'exam_number' => $registration->exam_number,
+                'registration_display' => $registration->student->registration_display ?? $registration->student->registration_number,
                 'gender' => $registration->student->gender,
                 'school' => $registration->student->school->name,
                 'class_level' => $registration->classLevel->name,
                 'region' => $registration->student->school->district->region->name ?? 'Dar es Salaam',
-                'school_code' => $registration->student->school->registration_number ?? 'S0103',
+                'school_code' => $registration->student->school?->candidateRegistrationPrefix() ?? 'S0101',
             ],
         ];
     }
@@ -210,6 +217,7 @@ class ReportingDataService
 
             $candidatePerformance[] = [
                 'exam_number' => $cand->exam_number,
+                'registration_display' => $cand->student->registration_display ?? $cand->student->registration_number,
                 'student_name' => $cand->student->first_name . ' ' . $cand->student->last_name,
                 'gender' => $cand->student->gender,
                 'gpa' => $candSummary->gpa,
@@ -234,7 +242,17 @@ class ReportingDataService
         });
 
         return [
-            'school' => $school,
+            'school' => [
+                'id' => $school->id,
+                'name' => $school->name,
+                'registration_number' => $school->registration_number,
+                'type' => $school->type,
+                'student_count' => (int) ($school->student_count_cache ?? $school->students()->count()),
+                'enrolment_category' => $school->enrolment_category ?? ((int) ($school->student_count_cache ?? $school->students()->count()) < 40 ? School::ENROLMENT_CATEGORY_BELOW_40 : School::ENROLMENT_CATEGORY_40_AND_ABOVE),
+                'enrolment_category_label' => $school->enrolment_category_label,
+                'district' => $school->district?->name,
+                'region' => $school->district?->region?->name,
+            ],
             'summary' => $summary,
             'subjectPerformance' => $subjectPerformance,
             'candidatePerformance' => $candidatePerformance,
@@ -250,12 +268,24 @@ class ReportingDataService
             ->get();
     }
 
-    public function getMeritListQuery(string $examId, string $classLevelId, ?string $schoolId = null): Builder
+    public function getMeritListQuery(
+        string $examId,
+        string $classLevelId,
+        ?string $schoolId = null,
+        ?string $districtId = null,
+        ?string $regionId = null
+    ): Builder
     {
-        return $this->meritListQuery($examId, $classLevelId, $schoolId);
+        return $this->meritListQuery($examId, $classLevelId, $schoolId, $districtId, $regionId);
     }
 
-    protected function meritListQuery(string $examId, string $classLevelId, ?string $schoolId = null): Builder
+    protected function meritListQuery(
+        string $examId,
+        string $classLevelId,
+        ?string $schoolId = null,
+        ?string $districtId = null,
+        ?string $regionId = null
+    ): Builder
     {
         $query = StudentExamSummary::join('examination_registrations', 'student_exam_summaries.examination_registration_id', '=', 'examination_registrations.id')
             ->join('students', 'examination_registrations.student_id', '=', 'students.id')
@@ -274,9 +304,9 @@ class ReportingDataService
 
         if ($schoolId) {
             $query->where('students.school_id', $schoolId);
-        } elseif ($districtId = request('district_id')) {
+        } elseif ($districtId) {
             $query->where('schools.district_id', $districtId);
-        } elseif ($regionId = request('region_id')) {
+        } elseif ($regionId) {
             $query->join('districts', 'schools.district_id', '=', 'districts.id')
                 ->where('districts.region_id', $regionId);
         }

@@ -8,6 +8,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('examinations', [ExaminationController::class, 'index']);
     Route::post('examinations', [ExaminationController::class, 'store']);
     Route::get('examinations/{id}', [ExaminationController::class, 'show']);
+    Route::put('examinations/{id}', [ExaminationController::class, 'update']);
     Route::delete('examinations/{id}', [ExaminationController::class, 'destroy']);
     Route::put('examinations/{id}/status', [ExaminationController::class, 'updateStatus']);
     Route::post('examinations/{id}/open-registration', [ExaminationController::class, 'openRegistration']);
@@ -21,10 +22,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('examinations/{id}/timetable', [ExaminationController::class, 'getTimetable']);
     Route::put('examinations/{id}/timetable', [ExaminationController::class, 'updateTimetable']);
     Route::get('examinations/{id}/candidates', [ExaminationController::class, 'getCandidates']);
+    Route::get('examinations/{id}/eligible-students', [ExaminationController::class, 'getEligibleStudents']);
 
     // Mappings & Registration
     Route::post('examinations/{id}/subjects', [ExaminationController::class, 'configureSubjects']);
     Route::post('examinations/{id}/register', [ExaminationController::class, 'registerCandidates']);
+    Route::post('examinations/{id}/registrations', [ExaminationController::class, 'registerCandidates']);
 
 
     // Grading System configurator

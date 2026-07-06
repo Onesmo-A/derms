@@ -14,7 +14,6 @@ class ConfigureSubjectsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'class_level_id' => ['required', 'uuid', 'exists:class_levels,id'],
             'subjects' => ['required', 'array', 'min:1'],
             'subjects.*.subject_id' => ['required', 'uuid', 'exists:subjects,id'],
             'subjects.*.max_marks' => ['required', 'numeric', 'min:1'],

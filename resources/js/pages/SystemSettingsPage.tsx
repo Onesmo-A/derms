@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 export default function SystemSettingsPage() {
     const [activeTab, setActiveTab] = useState<'general' | 'sms' | 'ai' | 'reports' | 'backup'>('general');
     const [smsKey, setSmsKey] = useState('beem-sec-key-********');
-    const [smsSender, setSmsSender] = useState('DERMS_ALRT');
+    const [smsSender, setSmsSender] = useState('IDEMS_ALRT');
     const [aiEngine, setAiEngine] = useState('gemini-1.5-flash');
 
     return (
@@ -82,11 +83,18 @@ export default function SystemSettingsPage() {
                         <h3 className="text-lg font-bold text-gray-900">AI Model Setup</h3>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700">Primary AI Inference Model</label>
-                            <select value={aiEngine} onChange={e => setAiEngine(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Default)</option>
-                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                <option value="gpt-4o">OpenAI GPT-4o</option>
-                            </select>
+                            <SearchableSelect
+                                value={aiEngine}
+                                onValueChange={setAiEngine}
+                                placeholder="Select AI Model"
+                                searchPlaceholder="Search model..."
+                                options={[
+                                    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Default)' },
+                                    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                                    { value: 'gpt-4o', label: 'OpenAI GPT-4o' },
+                                ]}
+                                className="mt-1"
+                            />
                         </div>
                         <button className="rounded-lg bg-[#0F4C81] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0c3c66]">Save AI Settings</button>
                     </div>
@@ -110,7 +118,7 @@ export default function SystemSettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 text-sm">
-                                <div><span className="font-semibold">derms_backup_2026_06_28.sql.gz</span> (PostgreSQL dump)</div>
+                                <div><span className="font-semibold">idems_backup_2026_06_28.sql.gz</span> (PostgreSQL dump)</div>
                                 <div className="text-xs text-gray-400">June 28, 2026 - 12.4 MB</div>
                             </div>
                         </div>

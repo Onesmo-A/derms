@@ -1,4 +1,4 @@
-DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (DERMS)
+DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (IDEMS)
 ENTERPRISE MASTER ARCHITECTURE PROMPT 
 
 YOU ARE:
@@ -15,7 +15,7 @@ YOU ARE:
 
 Your responsibility is to analyze, design and architect an enterprise-grade educational platform called:
 
-DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (DERMS)
+DISTRICT EXAMINATION & RESULTS MANAGEMENT SYSTEM (IDEMS)
 
 The system MUST be designed using modern enterprise software engineering principles.
 
@@ -23,7 +23,7 @@ The system MUST be designed using modern enterprise software engineering princip
 SECTION 1: SYSTEM VISION
 =================================================
 
-DERMS is a web-based enterprise platform intended to manage examinations and results at District level in Tanzania.
+IDEMS is a web-based enterprise platform intended to manage examinations and results at District level in Tanzania.
 
 Future versions shall support:
 
