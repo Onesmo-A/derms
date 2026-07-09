@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useToastFeedback } from '@/hooks/use-toast-feedback';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useAppSelector } from '@/hooks/rtk';
+import { selectCurrentUser } from '@/features/auth/authSlice';
+import { canManageCalendar, canManageExaminationSetup, ROLE_SUPER_ADMIN } from '@/lib/console-config';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 import { 
     Calendar as CalendarIcon, 
     Clock, 
@@ -24,6 +28,10 @@ import {
 type Tab = 'list' | 'create' | 'calendar' | 'timetable' | 'subjects' | 'centers';
 
 export default function ExamsPage() {
+    const currentUser = useAppSelector(selectCurrentUser);
+    const canManage = canManageExaminationSetup(currentUser?.role);
+    const canManageCalendarItems = canManageCalendar(currentUser?.role);
+    const { pathname } = useLocation();
     const [activeTab, setActiveTab] = useState<Tab>('list');
     const [exams, setExams] = useState<any[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
@@ -157,6 +165,22 @@ export default function ExamsPage() {
         fetchExams();
     }, []);
 
+    useEffect(() => {
+        if (pathname.includes('/create')) {
+            setActiveTab(canManage ? 'create' : 'list');
+        } else if (pathname.includes('/calendar')) {
+            setActiveTab('calendar');
+        } else if (pathname.includes('/timetable')) {
+            setActiveTab(canManage ? 'timetable' : 'list');
+        } else if (pathname.includes('/subjects')) {
+            setActiveTab(canManage ? 'subjects' : 'list');
+        } else if (pathname.includes('/centers')) {
+            setActiveTab('centers');
+        } else {
+            setActiveTab('list');
+        }
+    }, [pathname, canManage]);
+
     // Fetch districts when region changes
     useEffect(() => {
         if (selectedRegion) {
@@ -189,16 +213,18 @@ export default function ExamsPage() {
     }, [selectedDistrict]);
 
     // Load exam timetable
-    const loadTimetable = (examId: string) => {
+    const loadTimetable = async (examId: string) => {
         if (!examId) return;
         setLoadingTimetable(true);
-        fetch(`/api/v1/examinations/${examId}/timetable`, { headers })
-            .then(res => res.json())
-            .then(data => {
-                setTimetable(data || []);
-                setLoadingTimetable(false);
-            })
-            .catch(() => setLoadingTimetable(false));
+        try {
+            const res = await fetch(`/api/v1/examinations/${examId}/timetable`, { headers });
+            const data = await res.json();
+            setTimetable(data || []);
+        } catch {
+            // Keep existing timetable state if reload fails.
+        } finally {
+            setLoadingTimetable(false);
+        }
     };
 
     // Load configured exam subjects
@@ -225,6 +251,10 @@ export default function ExamsPage() {
     }, [selectedExamId, activeTab]);
 
     const handleCreateExam = (e: React.FormEvent) => {
+        if (!canManage) {
+            setError('This role has view-only access to examinations.');
+            return;
+        }
         e.preventDefault();
         setError('');
         setSuccess('');
@@ -286,6 +316,10 @@ export default function ExamsPage() {
     };
 
     const handleSaveTimetable = () => {
+        if (!canManage) {
+            setError('This role has view-only access to examination timetables.');
+            return;
+        }
         setSaving(true);
         setError('');
         setSuccess('');
@@ -319,7 +353,49 @@ export default function ExamsPage() {
         });
     };
 
+    const handleDeleteCalendarItem = async (scheduleId: string) => {
+        if (!canManageCalendarItems) {
+            setError('Only the Super Administrator can delete calendar entries.');
+            return;
+        }
+
+        if (!selectedExamId) {
+            setError('Please select an examination first.');
+            return;
+        }
+
+        if (!confirm('Delete this calendar entry? This will remove the scheduled paper.')) {
+            return;
+        }
+
+        setSaving(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const res = await fetch(`/api/v1/examinations/${selectedExamId}/timetable/${scheduleId}`, {
+                method: 'DELETE',
+                headers,
+            });
+            const body = await res.json();
+            if (!res.ok) {
+                throw new Error(body.message || 'Failed to delete calendar entry.');
+            }
+
+            setSuccess(body.message || 'Calendar entry deleted successfully.');
+            await loadTimetable(selectedExamId);
+        } catch (err: any) {
+            setError(err.message || 'Failed to delete calendar entry.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleConfigSubjects = () => {
+        if (!canManage) {
+            setError('This role has view-only access to subject weighting.');
+            return;
+        }
         setSaving(true);
         setError('');
         setSuccess('');
@@ -332,13 +408,16 @@ export default function ExamsPage() {
 
         const subjectsConfig = subjectsList.map(s => {
             const existing = examSubjects.find(es => es.subject_id === s.id);
+            const hasPractical = Boolean(s.has_practical);
             return {
                 subject_id: s.id,
                 class_level_id: selectedExamClassLevelId,
                 max_marks: existing ? existing.max_marks : 100,
                 pass_marks: existing ? existing.pass_marks : 30,
                 paper_one_weight: existing ? existing.paper_one_weight : 60,
-                paper_two_weight: existing ? existing.paper_two_weight : 40
+                paper_two_weight: existing ? existing.paper_two_weight : (hasPractical ? 40 : 0),
+                paper_one_max_marks: existing ? existing.paper_one_max_marks : 100,
+                paper_two_max_marks: existing ? existing.paper_two_max_marks : (hasPractical ? 50 : 0)
             };
         });
 
@@ -378,7 +457,9 @@ export default function ExamsPage() {
                     max_marks: 100,
                     pass_marks: 30,
                     paper_one_weight: 60,
-                    paper_two_weight: 40
+                    paper_two_weight: 40,
+                    paper_one_max_marks: 100,
+                    paper_two_max_marks: 50
                 });
             }
             return list;
@@ -594,8 +675,6 @@ export default function ExamsPage() {
                     </div>
                     <div className="relative grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[540px]">
                         {[
-                            { label: 'Exams', value: String(exams.length) },
-                            { label: 'Academic years', value: String(academicYears.length) },
                             { label: 'Subjects', value: String(subjectsList.length) },
                             { label: 'Current exam', value: selectedExamCode },
                             { label: 'Target class', value: selectedExamClass },
@@ -607,27 +686,6 @@ export default function ExamsPage() {
                         ))}
                     </div>
                 </div>
-            </div>
-
-            {/* Submenu tabs */}
-            <div className="flex gap-2 overflow-x-auto whitespace-nowrap rounded-2xl border border-slate-200 bg-white p-2 shadow-sm scrollbar-hide">
-                {[
-                    { id: 'list', label: 'All Examinations', icon: Sliders },
-                    { id: 'create', label: 'Create Examination', icon: Plus },
-                    { id: 'calendar', label: 'Examination Calendar', icon: CalendarIcon },
-                    { id: 'timetable', label: 'Examination Timetable', icon: Clock },
-                    { id: 'subjects', label: 'Assign & Weight Subjects', icon: BookOpen },
-                    { id: 'centers', label: 'Centers List', icon: School }
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition flex items-center gap-1.5 ${activeTab === tab.id ? 'bg-[#0F4C81] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-                    >
-                        <tab.icon className="h-4 w-4" />
-                        {tab.label}
-                    </button>
-                ))}
             </div>
 
             {error && (
@@ -689,7 +747,7 @@ export default function ExamsPage() {
                                                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                                                     Progress Timeline
                                                 </p>
-                                                <div className="mt-2 overflow-x-auto">
+                                                <div className="mt-2 overflow-x-auto scrollbar-hover">
                                                 <div className="min-w-[760px] rounded-2xl border border-white/70 bg-white/65 px-3 py-3 backdrop-blur-sm">
                                                     <div className="flex items-start">
                                                         {stageFlow.map((stage, index) => {
@@ -740,41 +798,47 @@ export default function ExamsPage() {
                                         </div>
                                         <div className="mt-4 flex flex-col gap-2 border-t border-white/70 pt-3 lg:flex-row lg:items-center lg:justify-between">
                                             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classic management view</span>
-                                            <div className="flex items-center gap-2">
-                                                {getNextTarget(exam.status) && (
+                                            {canManage ? (
+                                                <div className="flex items-center gap-2">
+                                                    {getNextTarget(exam.status) && (
+                                                        <button
+                                                            onClick={() => confirmStageChange(exam.id, getNextTarget(exam.status)!, 'advance')}
+                                                            className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-800 transition hover:bg-sky-100 disabled:opacity-50"
+                                                            disabled={saving}
+                                                        >
+                                                            <TrendingUp className="h-3 w-3" />
+                                                            Advance Stage
+                                                        </button>
+                                                    )}
+                                                    {getRollbackTarget(exam.status) && (
+                                                        <button
+                                                            onClick={() => confirmStageChange(exam.id, getRollbackTarget(exam.status)!, 'rollback')}
+                                                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
+                                                            disabled={saving}
+                                                        >
+                                                            <RotateCcw className="h-3 w-3" />
+                                                            Rollback
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => confirmStageChange(exam.id, getNextTarget(exam.status)!, 'advance')}
-                                                        className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-800 transition hover:bg-sky-100 disabled:opacity-50"
-                                                        disabled={saving}
+                                                        onClick={() => openEditExam(exam.id)}
+                                                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-[#0F4C81] transition hover:bg-slate-50"
                                                     >
-                                                        <TrendingUp className="h-3 w-3" />
-                                                        Advance Stage
+                                                        <Edit2 className="h-3 w-3" />
+                                                        Edit
                                                     </button>
-                                                )}
-                                                {getRollbackTarget(exam.status) && (
-                                                    <button
-                                                        onClick={() => confirmStageChange(exam.id, getRollbackTarget(exam.status)!, 'rollback')}
-                                                        className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
-                                                        disabled={saving}
+                                                    <button 
+                                                        onClick={() => handleDeleteExam(exam.id)}
+                                                        className="text-gray-400 transition hover:text-rose-600"
                                                     >
-                                                        <RotateCcw className="h-3 w-3" />
-                                                        Rollback
+                                                        <Trash2 className="h-3.5 w-3.5" />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => openEditExam(exam.id)}
-                                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-[#0F4C81] transition hover:bg-slate-50"
-                                                >
-                                                    <Edit2 className="h-3 w-3" />
-                                                    Edit
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDeleteExam(exam.id)}
-                                                    className="text-gray-400 transition hover:text-rose-600"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
+                                                </div>
+                                            ) : (
+                                                <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
+                                                    View-only access
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -784,7 +848,7 @@ export default function ExamsPage() {
                 )}
 
                 {/* 2. CREATE EXAMINATION */}
-                {activeTab === 'create' && (
+                {activeTab === 'create' && canManage && (
                     <form onSubmit={handleCreateExam} className="space-y-4 max-w-lg">
                         <div className="flex items-center justify-between gap-3 border-b pb-2">
                             <h3 className="text-lg font-bold text-gray-900">
@@ -920,6 +984,12 @@ export default function ExamsPage() {
                             />
                         </div>
 
+                        {!canManageCalendarItems && (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                                Calendar is visible to all users. Only the Super Administrator can edit or delete calendar entries.
+                            </div>
+                        )}
+
                         {loadingTimetable ? (
                             <div className="flex h-48 items-center justify-center">
                                 <Loader2 className="h-8 w-8 animate-spin text-[#0F4C81]" />
@@ -931,7 +1001,7 @@ export default function ExamsPage() {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {timetable.map(paper => (
-                                    <div key={paper.id} className="p-4 border rounded-2xl bg-slate-50 flex items-center justify-between">
+                                    <div key={paper.id} className="p-4 border rounded-2xl bg-slate-50 space-y-3">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-xl bg-sky-100 text-[#0F4C81] flex items-center justify-center font-black text-xs">
                                                 {paper.subject?.code || 'SUB'}
@@ -944,21 +1014,72 @@ export default function ExamsPage() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-                                                <Clock className="h-3 w-3" />
-                                                {paper.start_time || 'Morning'} - {paper.end_time || 'Noon'}
-                                            </span>
+                                        <div className="flex items-center justify-between gap-3">
+                                            {canManageCalendarItems ? (
+                                                <>
+                                                    <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+                                                        <input
+                                                            type="date"
+                                                            value={paper.exam_date || ''}
+                                                            onChange={(e) => handleUpdateTimetableField(paper.id, 'exam_date', e.target.value)}
+                                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={paper.start_time || '08:30 AM'}
+                                                            placeholder="Start"
+                                                            onChange={(e) => handleUpdateTimetableField(paper.id, 'start_time', e.target.value)}
+                                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={paper.end_time || '11:30 AM'}
+                                                            placeholder="End"
+                                                            onChange={(e) => handleUpdateTimetableField(paper.id, 'end_time', e.target.value)}
+                                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteCalendarItem(paper.id)}
+                                                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                                                        disabled={saving}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="text-right">
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                                                        <Clock className="h-3 w-3" />
+                                                        {paper.start_time || 'Morning'} - {paper.end_time || 'Noon'}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                        {canManageCalendarItems && timetable.length > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Super Admin can edit or delete calendar entries, then save the timetable updates.
+                                </p>
+                                <button
+                                    disabled={saving}
+                                    onClick={handleSaveTimetable}
+                                    className="rounded-xl bg-[#0F4C81] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c3c66] transition disabled:opacity-50"
+                                >
+                                    {saving ? 'Saving Calendar...' : 'Save Calendar Changes'}
+                                </button>
                             </div>
                         )}
                     </div>
                 )}
 
                 {/* 4. EXAMINATION TIMETABLE */}
-                {activeTab === 'timetable' && (
+                {activeTab === 'timetable' && canManage && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center border-b pb-4">
                             <div>
@@ -985,7 +1106,7 @@ export default function ExamsPage() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="border rounded-2xl overflow-x-auto">
+                                <div className="border rounded-2xl overflow-x-auto scrollbar-hover">
                                     <table className="w-full text-left text-sm text-gray-500">
                                         <thead className="bg-slate-50 text-xs uppercase text-gray-700">
                                             <tr>
@@ -1046,7 +1167,7 @@ export default function ExamsPage() {
                 )}
 
                 {/* 5. ASSIGN & WEIGHT SUBJECTS */}
-                {activeTab === 'subjects' && (
+                {activeTab === 'subjects' && canManage && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center border-b pb-4">
                             <div>
@@ -1069,7 +1190,7 @@ export default function ExamsPage() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="border rounded-2xl overflow-x-auto">
+                                <div className="border rounded-2xl overflow-x-auto scrollbar-hover">
                                     <table className="w-full text-left text-sm text-gray-500">
                                         <thead className="bg-slate-50 text-xs uppercase text-gray-700">
                                             <tr>
@@ -1077,6 +1198,8 @@ export default function ExamsPage() {
                                                 <th className="px-6 py-4 font-bold">Subject Name</th>
                                                 <th className="px-6 py-4 font-bold">Max Marks</th>
                                                 <th className="px-6 py-4 font-bold">Pass Marks</th>
+                                                <th className="px-6 py-4 font-bold">Theory Max</th>
+                                                <th className="px-6 py-4 font-bold">Practical Max</th>
                                                 <th className="px-6 py-4 font-bold">Theory Weight %</th>
                                                 <th className="px-6 py-4 font-bold">Practical Weight %</th>
                                             </tr>
@@ -1107,7 +1230,23 @@ export default function ExamsPage() {
                                                         <td className="px-6 py-4">
                                                             <input 
                                                                 type="number"
-                                                                value={mapping ? mapping.paper_one_weight : 60}
+                                                                value={mapping ? mapping.paper_one_max_marks : 100}
+                                                                onChange={e => handleUpdateExamSubjectField(s.id, 'paper_one_max_marks', Number(e.target.value))}
+                                                                className="border rounded-xl px-3 py-1.5 text-xs font-bold w-20 text-center outline-none"
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <input 
+                                                                type="number"
+                                                                value={mapping ? mapping.paper_two_max_marks : (s.has_practical ? 50 : 0)}
+                                                                onChange={e => handleUpdateExamSubjectField(s.id, 'paper_two_max_marks', Number(e.target.value))}
+                                                                className="border rounded-xl px-3 py-1.5 text-xs font-bold w-20 text-center outline-none"
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <input 
+                                                                type="number"
+                                                                value={mapping ? mapping.paper_one_weight : (s.has_practical ? 60 : 100)}
                                                                 onChange={e => handleUpdateExamSubjectField(s.id, 'paper_one_weight', Number(e.target.value))}
                                                                 className="border rounded-xl px-3 py-1.5 text-xs font-bold w-20 text-center outline-none"
                                                             />
@@ -1115,7 +1254,7 @@ export default function ExamsPage() {
                                                         <td className="px-6 py-4">
                                                             <input 
                                                                 type="number"
-                                                                value={mapping ? mapping.paper_two_weight : 40}
+                                                                value={mapping ? mapping.paper_two_weight : (s.has_practical ? 40 : 0)}
                                                                 onChange={e => handleUpdateExamSubjectField(s.id, 'paper_two_weight', Number(e.target.value))}
                                                                 className="border rounded-xl px-3 py-1.5 text-xs font-bold w-20 text-center outline-none"
                                                             />
@@ -1201,6 +1340,12 @@ export default function ExamsPage() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {!canManage && activeTab !== 'list' && activeTab !== 'centers' && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
+                        This role has view-only access to examinations. Creation, calendar, timetable, and subject weighting are managed at district academic level.
                     </div>
                 )}
 

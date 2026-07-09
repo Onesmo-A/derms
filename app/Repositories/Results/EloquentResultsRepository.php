@@ -35,9 +35,18 @@ class EloquentResultsRepository implements ResultsRepositoryInterface
     {
         return StudentExamSummary::join('examination_registrations', 'student_exam_summaries.examination_registration_id', '=', 'examination_registrations.id')
             ->join('students', 'examination_registrations.student_id', '=', 'students.id')
+            ->join('schools', 'students.school_id', '=', 'schools.id')
+            ->join('districts', 'schools.district_id', '=', 'districts.id')
             ->where('examination_registrations.examination_id', $examinationId)
             ->where('examination_registrations.class_level_id', $classLevelId)
-            ->select('student_exam_summaries.*', 'students.school_id', 'students.gender', 'examination_registrations.status as reg_status')
+            ->select(
+                'student_exam_summaries.*',
+                'students.school_id',
+                'students.gender',
+                'districts.id as district_id',
+                'districts.region_id as region_id',
+                'examination_registrations.status as reg_status'
+            )
             ->get();
     }
 

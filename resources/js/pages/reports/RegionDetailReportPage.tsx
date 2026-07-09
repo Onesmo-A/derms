@@ -53,7 +53,7 @@ function DataTable({
                 <h2 className="text-base font-black tracking-tight text-slate-900">{title}</h2>
                 {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
             </div>
-            <div className="overflow-x-auto border border-slate-200 bg-white">
+            <div className="overflow-x-auto border border-slate-200 bg-white scrollbar-hover">
                 <table className="min-w-full border-collapse text-left text-[13px]">
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.12em] text-slate-500">
                         <tr>
@@ -173,7 +173,7 @@ function DistrictDivisionTable({ rows }: { rows: TableRow[] }) {
                 <h2 className="text-base font-black tracking-tight text-slate-900">Division Analysis</h2>
                 <p className="mt-1 text-sm text-slate-600">Gender and division breakdown across all districts in the region.</p>
             </div>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm scrollbar-hover">
                 <table className="min-w-[1140px] table-fixed border-collapse text-left text-[12px]">
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.12em] text-slate-500">
                         <tr>

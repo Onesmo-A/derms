@@ -117,14 +117,14 @@ const chartPalette = ['#0F4C81', '#5B7C99', '#7A8CA0', '#93A8B8', '#9FD3C7', '#B
 
 function MetricCard({ label, value, icon: Icon }: { label: string; value: any; icon: React.ComponentType<{ className?: string }> }) {
     return (
-        <div className={sectionCard}>
-            <div className="flex items-start justify-between gap-3">
-                <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{label}</p>
-                    <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p>
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{label}</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
                 </div>
-                <div className="rounded-xl bg-slate-100 p-2 text-slate-700">
-                    <Icon className="h-4 w-4" />
+                <div className="rounded-xl bg-[#0F4C81]/10 p-3 flex-shrink-0">
+                    <Icon className="h-6 w-6 text-[#0F4C81]" />
                 </div>
             </div>
         </div>
@@ -134,7 +134,7 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: any; i
 function DataTable({ columns, rows, onRowClick }: { columns: string[]; rows: any[]; onRowClick?: (row: any) => void }) {
     return (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hover">
                 <table className="min-w-full text-left text-sm">
                     <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                         <tr>

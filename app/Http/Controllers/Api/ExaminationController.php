@@ -391,6 +391,29 @@ class ExaminationController extends Controller
         return response()->json(['message' => 'Timetable updated successfully.']);
     }
 
+    public function deleteTimetableItem(string $id, string $subjectId, AuditLogger $auditLogger)
+    {
+        $exam = Examination::findOrFail($id);
+        $this->authorize('update', $exam);
+
+        $schedule = ExaminationSubject::where('id', $subjectId)
+            ->where('examination_id', $exam->id)
+            ->firstOrFail();
+
+        $old = $schedule->toArray();
+        $schedule->delete();
+
+        $auditLogger->log(
+            action: 'examination.timetable.deleted',
+            description: 'Timetable schedule deleted for exam: ' . $exam->name,
+            user: auth()->user(),
+            oldValues: $old,
+            newValues: ['examination_id' => $id, 'deleted_subject_id' => $subjectId]
+        );
+
+        return response()->json(['message' => 'Timetable schedule removed successfully.']);
+    }
+
     public function getCandidates(Request $request, string $id, ExaminationCatalogService $catalogService)
     {
         $exam = Examination::findOrFail($id);

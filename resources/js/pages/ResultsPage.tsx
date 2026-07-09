@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useAppSelector } from '@/hooks/rtk';
+import { selectCurrentUser } from '@/features/auth/authSlice';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from 'sonner';
+import { canManageResultsOperations } from '@/lib/console-config';
 import { 
     DatabaseZap, 
     RefreshCw, 
@@ -26,6 +29,8 @@ import {
 type Tab = 'internal' | 'external' | 'verification' | 'comparison' | 'analytics' | 'history' | 'health';
 
 export default function ResultsPage() {
+    const currentUser = useAppSelector(selectCurrentUser);
+    const canManage = canManageResultsOperations(currentUser?.role);
     const [activeTab, setActiveTab] = useState<Tab>('internal');
     const [loading, setLoading] = useState(true);
     const [exams, setExams] = useState<any[]>([]);
@@ -117,6 +122,12 @@ export default function ResultsPage() {
         fetchSessions();
         checkSystemHealth();
     }, []);
+
+    useEffect(() => {
+        if (!canManage && activeTab !== 'internal') {
+            setActiveTab('internal');
+        }
+    }, [canManage, activeTab]);
 
     // Dynamic Discovery: Years list based on selected Source & Exam Type
     useEffect(() => {
@@ -374,11 +385,15 @@ export default function ResultsPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">Results Console</h1>
-                <p className="mt-1 text-sm text-gray-500 font-medium">Pluggable external results staging pipelines, discrepancy reports verification, and telemetry metrics.</p>
+                <p className="mt-1 text-sm text-gray-500 font-medium">
+                    {canManage
+                        ? 'Pluggable external results staging pipelines, discrepancy reports verification, and telemetry metrics.'
+                        : 'View-only results access. Processing, staging, verification, and publication are managed at district academic level.'}
+                </p>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
+            <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hover">
                 <button
                     onClick={() => setActiveTab('internal')}
                     className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'internal' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -386,41 +401,45 @@ export default function ResultsPage() {
                     <Sliders className="h-4 w-4 inline mr-2" />
                     Internal Mocks
                 </button>
-                <button
-                    onClick={() => setActiveTab('external')}
-                    className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'external' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    <DatabaseZap className="h-4 w-4 inline mr-2" />
-                    External Importer
-                </button>
-                <button
-                    onClick={() => setActiveTab('verification')}
-                    className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'verification' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    <CheckCircle2 className="h-4 w-4 inline mr-2" />
-                    Staging Verification
-                </button>
-                <button
-                    onClick={() => setActiveTab('comparison')}
-                    className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'comparison' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    <AlertTriangle className="h-4 w-4 inline mr-2" />
-                    Comparisons
-                </button>
-                <button
-                    onClick={() => setActiveTab('history')}
-                    className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'history' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    <History className="h-4 w-4 inline mr-2" />
-                    Import History
-                </button>
-                <button
-                    onClick={() => setActiveTab('health')}
-                    className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'health' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    <Heart className="h-4 w-4 inline mr-2" />
-                    System Health Check
-                </button>
+                {canManage && (
+                    <>
+                        <button
+                            onClick={() => setActiveTab('external')}
+                            className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'external' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <DatabaseZap className="h-4 w-4 inline mr-2" />
+                            External Importer
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('verification')}
+                            className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'verification' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <CheckCircle2 className="h-4 w-4 inline mr-2" />
+                            Staging Verification
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('comparison')}
+                            className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'comparison' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <AlertTriangle className="h-4 w-4 inline mr-2" />
+                            Comparisons
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'history' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <History className="h-4 w-4 inline mr-2" />
+                            Import History
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('health')}
+                            className={`px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === 'health' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Heart className="h-4 w-4 inline mr-2" />
+                            System Health Check
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Content Panels */}
@@ -430,6 +449,11 @@ export default function ResultsPage() {
                 {activeTab === 'internal' && (
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-900">Process & Publish Local Results</h3>
+                        {!canManage && (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                                This role can review results status only. Processing, staging, verification, and publication are reserved for district academic operations.
+                            </div>
+                        )}
                         {loading ? (
                             <div className="flex h-64 items-center justify-center">
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F4C81] border-t-transparent"></div>
@@ -443,28 +467,36 @@ export default function ResultsPage() {
                                             <p className="text-xs text-gray-500 mt-1">Status: <span className="uppercase font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">{exam.status}</span></p>
                                         </div>
                                         <div className="mt-6 flex justify-end gap-3">
-                                            {exam.status === 'processed' ? (
-                                                <button
-                                                    onClick={() => handlePublish(exam.id, true)}
-                                                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition"
-                                                >
-                                                    Publish Portals
-                                                </button>
-                                            ) : exam.status === 'published' ? (
-                                                <button
-                                                    onClick={() => handlePublish(exam.id, false)}
-                                                    className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 transition"
-                                                >
-                                                    Unpublish Portals
-                                                </button>
-                                            ) : null}
-                                            <button
-                                                disabled={processingId === exam.id || exam.status === 'processed'}
-                                                onClick={() => handleProcess(exam.id)}
-                                                className="rounded-xl bg-[#0F4C81] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0c3c66] transition disabled:opacity-50"
-                                            >
-                                                {processingId === exam.id ? 'Running calculations...' : exam.status === 'processed' ? 'Re-run computations' : 'Process Results'}
-                                            </button>
+                                            {canManage ? (
+                                                <>
+                                                    {exam.status === 'processed' ? (
+                                                        <button
+                                                            onClick={() => handlePublish(exam.id, true)}
+                                                            className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition"
+                                                        >
+                                                            Publish Portals
+                                                        </button>
+                                                    ) : exam.status === 'published' ? (
+                                                        <button
+                                                            onClick={() => handlePublish(exam.id, false)}
+                                                            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 transition"
+                                                        >
+                                                            Unpublish Portals
+                                                        </button>
+                                                    ) : null}
+                                                    <button
+                                                        disabled={processingId === exam.id || exam.status === 'processed'}
+                                                        onClick={() => handleProcess(exam.id)}
+                                                        className="rounded-xl bg-[#0F4C81] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0c3c66] transition disabled:opacity-50"
+                                                    >
+                                                        {processingId === exam.id ? 'Running calculations...' : exam.status === 'processed' ? 'Re-run computations' : 'Process Results'}
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
+                                                    View-only
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -474,7 +506,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 2. EXTERNAL PLUGGABLE IMPORTER */}
-                {activeTab === 'external' && (
+                {activeTab === 'external' && canManage && (
                     <div className="space-y-6">
                         <div className="border-b pb-4">
                             <h3 className="text-lg font-bold text-gray-900">External Boards Import Hub</h3>
@@ -603,7 +635,7 @@ export default function ResultsPage() {
                                         No centres discovered. Select classification and year to fetch.
                                     </div>
                                 ) : (
-                                    <div className="border rounded-2xl max-h-96 overflow-y-auto divide-y">
+                                    <div className="border rounded-2xl max-h-96 overflow-y-auto divide-y scrollbar-hover">
                                         {filteredCentres.map(c => (
                                             <div key={c.centre_number} className="flex items-center justify-between p-3.5 hover:bg-slate-50 transition">
                                                 <div className="flex items-center gap-3">
@@ -631,7 +663,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 3. STAGING VERIFICATION PANEL */}
-                {activeTab === 'verification' && (
+                {activeTab === 'verification' && canManage && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center border-b pb-4">
                             <div>
@@ -687,7 +719,7 @@ export default function ResultsPage() {
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto w-full border rounded-2xl">
+                                <div className="overflow-x-auto w-full border rounded-2xl scrollbar-hover">
                                     <table className="w-full border-collapse text-left text-sm text-gray-500">
                                         <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                             <tr>
@@ -763,7 +795,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 4. COMPARISON CONSOLE */}
-                {activeTab === 'comparison' && (
+                {activeTab === 'comparison' && canManage && (
                     <div className="space-y-6">
                         <div className="border-b pb-4 flex justify-between items-center">
                             <div>
@@ -829,7 +861,7 @@ export default function ResultsPage() {
                                             Clean alignment. External grades matched mocked profiles.
                                         </div>
                                     ) : (
-                                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                                        <div className="space-y-2 max-h-80 overflow-y-auto scrollbar-hover">
                                             {comparisonReport.division_mismatches.map((m: any) => (
                                                 <div key={m.candidate_number} className="flex justify-between items-center bg-white p-3 border rounded-xl text-xs">
                                                     <div>
@@ -850,7 +882,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 5. ANALYTICS */}
-                {activeTab === 'analytics' && (
+                {activeTab === 'analytics' && canManage && (
                     <div className="space-y-4 text-center py-12">
                         <Cpu className="h-12 w-12 text-[#0F4C81] mx-auto animate-bounce" />
                         <h3 className="text-lg font-bold text-gray-900 mt-4">Intelligent AI Predictions Engine</h3>
@@ -859,7 +891,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 6. IMPORT HISTORY */}
-                {activeTab === 'history' && (
+                {activeTab === 'history' && canManage && (
                     <div className="space-y-4">
                         <div className="flex justify-between items-center border-b pb-4">
                             <h3 className="text-lg font-bold text-gray-900">Import Sessions History</h3>
@@ -873,7 +905,7 @@ export default function ResultsPage() {
                                 No previous import session records found.
                             </div>
                         ) : (
-                            <div className="overflow-x-auto w-full">
+                            <div className="overflow-x-auto w-full scrollbar-hover">
                                 <table className="w-full border-collapse text-left text-sm text-gray-500">
                                     <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                         <tr>
@@ -940,7 +972,7 @@ export default function ResultsPage() {
                 )}
 
                 {/* 7. SYSTEM HEALTH CHECK PANEL */}
-                {activeTab === 'health' && (
+                {activeTab === 'health' && canManage && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center border-b pb-4">
                             <div>
@@ -1014,6 +1046,11 @@ export default function ResultsPage() {
                 )}
 
             </div>
+            {!canManage && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                    Results processing is currently a district-level workflow. A school-level results console can be added later for read-only summary review and school-specific actions.
+                </div>
+            )}
         </div>
     );
 }

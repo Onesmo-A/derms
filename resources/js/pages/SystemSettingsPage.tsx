@@ -14,7 +14,7 @@ export default function SystemSettingsPage() {
                 <p className="mt-1 text-sm text-gray-500">Configure global application profiles, API keys, notification defaults, and backup processes.</p>
             </div>
 
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
+            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap scrollbar-hover">
                 <button
                     onClick={() => setActiveTab('general')}
                     className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${activeTab === 'general' ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}

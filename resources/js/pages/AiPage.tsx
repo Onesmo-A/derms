@@ -132,7 +132,7 @@ export default function AiPage() {
             </div>
 
             {/* Submenu tabs */}
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
+            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap scrollbar-hover">
                 {[
                     { id: 'performance', label: 'Performance Analysis', path: '/ai/performance-analysis' },
                     { id: 'risk', label: 'Risk Detection', path: '/ai/risk-detection' },

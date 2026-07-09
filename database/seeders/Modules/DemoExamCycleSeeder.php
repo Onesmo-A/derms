@@ -7,12 +7,13 @@ use App\Domains\Examination\Models\Examination;
 use App\Domains\Examination\Models\ExaminationRegistration;
 use App\Domains\Examination\Models\ExaminationSubject;
 use App\Domains\Examination\Models\ExaminationType;
-use App\Domains\Examination\Models\Subject;
 use App\Domains\Results\Models\Mark;
 use App\Domains\Results\Services\ResultsProcessingService;
 use App\Domains\School\Models\School;
 use App\Domains\Student\Models\AcademicYear;
 use App\Domains\Student\Models\ClassLevel;
+use App\Domains\Student\Services\StudentSubjectBackfillService;
+use App\Domains\Student\Services\StudentSubjectService;
 use App\Enums\ExaminationRegistrationStatus;
 use App\Enums\ExaminationStatus;
 use Illuminate\Database\Seeder;
@@ -53,7 +54,20 @@ class DemoExamCycleSeeder extends Seeder
         $admin = \App\Domains\Identity\Models\User::where('email', 'admin@idems.go.tz')->firstOrFail();
 
         $schools = School::orderBy('registration_number')->get();
-        $subjects = Subject::orderBy('code')->get();
+        $students = \App\Domains\Student\Models\Student::with('school')
+            ->where('current_class_level_id', $formFour->id)
+            ->orderBy('registration_number')
+            ->get();
+
+        $subjectResolver = app(StudentSubjectBackfillService::class);
+        $studentSubjectService = app(StudentSubjectService::class);
+        $subjects = $students->isNotEmpty()
+            ? $subjectResolver->resolveDefaultSubjects($students->first())
+            : collect();
+
+        if ($subjects->count() < StudentSubjectService::MIN_SUBJECTS) {
+            throw new \RuntimeException('Demo exam cycle requires at least ' . StudentSubjectService::MIN_SUBJECTS . ' default subjects.');
+        }
 
         $exam = Examination::firstOrCreate(
             ['name' => 'Form Four District Mock Exam 2026'],
@@ -102,16 +116,23 @@ class DemoExamCycleSeeder extends Seeder
                     'pass_marks' => 30.00,
                     'paper_one_weight' => $subject->has_practical ? 70.00 : 100.00,
                     'paper_two_weight' => $subject->has_practical ? 30.00 : 0.00,
+                    'paper_one_max_marks' => 100.00,
+                    'paper_two_max_marks' => $subject->has_practical ? 50.00 : 0.00,
                 ]
             );
         }
 
-        $students = \App\Domains\Student\Models\Student::with('school')
-            ->where('current_class_level_id', $formFour->id)
-            ->orderBy('registration_number')
-            ->get();
-
         $schoolCounters = [];
+        $subjectIds = $subjects->pluck('id')->all();
+
+        foreach ($students as $student) {
+            $studentSubjectService->syncRegistrations(
+                $student,
+                $subjectIds,
+                $academicYear->id,
+                $admin->id
+            );
+        }
 
         foreach ($students as $student) {
             $schoolCounters[$student->school_id] = ($schoolCounters[$student->school_id] ?? 0) + 1;
@@ -136,20 +157,20 @@ class DemoExamCycleSeeder extends Seeder
 
                 if ($performanceProfile === 0) {
                     $score1 = rand(70, 90);
-                    $score2 = $examSubject->paper_two_weight > 0 ? rand(65, 85) : 0;
+                    $score2 = $examSubject->paper_two_weight > 0 ? rand(35, 50) : 0;
                 } elseif ($performanceProfile === 1) {
                     $score1 = rand(45, 69);
-                    $score2 = $examSubject->paper_two_weight > 0 ? rand(40, 65) : 0;
+                    $score2 = $examSubject->paper_two_weight > 0 ? rand(25, 34) : 0;
                 } elseif ($performanceProfile === 2) {
                     $score1 = rand(25, 44);
-                    $score2 = $examSubject->paper_two_weight > 0 ? rand(20, 42) : 0;
+                    $score2 = $examSubject->paper_two_weight > 0 ? rand(15, 24) : 0;
                 } else {
                     $score1 = rand(10, 29);
-                    $score2 = $examSubject->paper_two_weight > 0 ? rand(5, 25) : 0;
+                    $score2 = $examSubject->paper_two_weight > 0 ? rand(5, 14) : 0;
                 }
 
                 $finalScore = $examSubject->paper_two_weight > 0
-                    ? (($score1 * $examSubject->paper_one_weight) + ($score2 * $examSubject->paper_two_weight)) / 100
+                    ? (($score1 + $score2) / 150) * 100
                     : $score1;
 
                 $grade = 'F';

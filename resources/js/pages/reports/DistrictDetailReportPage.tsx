@@ -57,7 +57,7 @@ function DataTable({
                 <h2 className="text-base font-black tracking-tight text-slate-900">{title}</h2>
                 {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
             </div>
-            <div className="overflow-x-auto border border-slate-200 bg-white">
+            <div className="overflow-x-auto border border-slate-200 bg-white scrollbar-hover">
                 <table className="min-w-full border-collapse text-left text-[13px]">
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.12em] text-slate-500">
                         <tr>

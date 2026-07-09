@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
+use App\Domains\Student\Services\StudentSubjectBackfillService;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -39,3 +40,33 @@ Artisan::command('external-results:check-new-results', function () {
 })->purpose('Check daily for newly published results on external portal boards');
 
 Schedule::command('external-results:check-new-results')->dailyAt('08:00');
+
+Artisan::command('students:backfill-subjects {--dry-run} {--fill-partial} {--academic-year=} {--class-level=} {--school=} {--status=active}', function () {
+    $service = app(StudentSubjectBackfillService::class);
+
+    $filters = array_filter([
+        'academic_year_id' => $this->option('academic-year'),
+        'class_level_id' => $this->option('class-level'),
+        'school_id' => $this->option('school'),
+        'status' => $this->option('status'),
+    ], fn ($value) => !empty($value));
+
+    $report = $service->run(
+        $filters,
+        (bool) $this->option('dry-run'),
+        (bool) $this->option('fill-partial')
+    );
+
+    $this->info(sprintf(
+        'Processed %d students. Created %d registrations, updated %d, dropped %d, skipped %d.',
+        $report['processed'],
+        $report['created'],
+        $report['updated'],
+        $report['dropped'],
+        $report['skipped'],
+    ));
+
+    if ($this->option('dry-run')) {
+        $this->comment('Dry run completed. No data was written.');
+    }
+})->purpose('Backfill default subject registrations for existing students');

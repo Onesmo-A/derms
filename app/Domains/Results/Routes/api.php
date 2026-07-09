@@ -8,6 +8,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Marks entry grid & Bulk Save endpoints
     Route::get('marks/exams/{examId}/class-levels/{classLevelId}/subjects/{subjectId}', [MarksController::class, 'getMarksGrid']);
     Route::post('marks/bulk-save', [MarksController::class, 'bulkSave']);
+    Route::get('marks/import/template', [MarksController::class, 'downloadImportTemplate']);
+    Route::post('marks/import', [MarksController::class, 'importMarks']);
 
     // External Pluggable Results Importer API Gateway
     Route::get('imports/years', [NectaController::class, 'getYears']);

@@ -20,6 +20,8 @@ class ConfigureSubjectsRequest extends FormRequest
             'subjects.*.pass_marks' => ['required', 'numeric', 'min:1', 'lte:subjects.*.max_marks'],
             'subjects.*.paper_one_weight' => ['required', 'numeric', 'min:0', 'max:100'],
             'subjects.*.paper_two_weight' => ['required', 'numeric', 'min:0', 'max:100'],
+            'subjects.*.paper_one_max_marks' => ['nullable', 'numeric', 'min:1', 'max:100'],
+            'subjects.*.paper_two_max_marks' => ['nullable', 'numeric', 'min:0', 'max:50'],
         ];
     }
 }

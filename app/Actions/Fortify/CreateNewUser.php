@@ -24,10 +24,30 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
+        [$firstName, $middleName, $lastName] = $this->splitName($input['name']);
+
         return User::create([
-            'name' => $input['name'],
+            'first_name' => $firstName,
+            'middle_name' => $middleName,
+            'last_name' => $lastName,
             'email' => $input['email'],
             'password' => $input['password'],
         ]);
+    }
+
+    /**
+     * Split a display name into first, middle, and last name components.
+     *
+     * @return array{0:string,1:?string,2:string}
+     */
+    private function splitName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+
+        $firstName = array_shift($parts) ?: $name;
+        $lastName = array_pop($parts) ?: $firstName;
+        $middleName = trim(implode(' ', $parts)) ?: null;
+
+        return [$firstName, $middleName, $lastName];
     }
 }

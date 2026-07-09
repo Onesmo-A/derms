@@ -31,6 +31,9 @@ class ExaminationSeeder extends Seeder
                 [
                     'name' => $subjectData['name'],
                     'short_name' => $subjectData['short_name'],
+                    'description' => $subjectData['description'] ?? null,
+                    'class_level_id' => $subjectData['class_level_id'] ?? null,
+                    'is_active' => $subjectData['is_active'] ?? true,
                     'has_practical' => $subjectData['has_practical'],
                 ]
             );

@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Timetable endpoints
     Route::get('examinations/{id}/timetable', [ExaminationController::class, 'getTimetable']);
     Route::put('examinations/{id}/timetable', [ExaminationController::class, 'updateTimetable']);
+    Route::delete('examinations/{id}/timetable/{subjectId}', [ExaminationController::class, 'deleteTimetableItem']);
     Route::get('examinations/{id}/candidates', [ExaminationController::class, 'getCandidates']);
     Route::get('examinations/{id}/eligible-students', [ExaminationController::class, 'getEligibleStudents']);
 

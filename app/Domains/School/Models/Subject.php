@@ -2,8 +2,12 @@
 
 namespace App\Domains\School\Models;
 
+use App\Domains\Student\Models\ClassLevel;
+use App\Domains\Student\Models\StudentSubject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -37,8 +41,13 @@ class Subject extends Model
         static::creating(fn ($m) => $m->id = $m->id ?: (string) Str::uuid());
     }
 
-    public function classLevel()
+    public function classLevel(): BelongsTo
     {
         return $this->belongsTo(ClassLevel::class);
+    }
+
+    public function studentSubjectRegistrations(): HasMany
+    {
+        return $this->hasMany(StudentSubject::class, 'subject_id');
     }
 }

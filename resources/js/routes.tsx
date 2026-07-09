@@ -58,6 +58,8 @@ import SchoolDetailPage from '@/pages/SchoolDetailPage';
 import RegionsPage from '@/pages/RegionsPage';
 import DistrictsPage from '@/pages/DistrictsPage';
 import StudentsPage from '@/pages/StudentsPage';
+import CandidatesPage from '@/pages/CandidatesPage';
+import CandidateRegisterPage from '@/pages/CandidateRegisterPage';
 import ExamsPage from '@/pages/ExamsPage';
 import MarksEntryPage from '@/pages/MarksEntryPage';
 import ResultsPage from '@/pages/ResultsPage';
@@ -80,27 +82,31 @@ import AiPage from '@/pages/AiPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import HelpPage from '@/pages/HelpPage';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAppSelector } from '@/hooks/rtk';
+import { useInitials } from '@/hooks/use-initials';
 import { selectCurrentUser } from '@/features/auth/authSlice';
-
-type MenuItem = {
-    title: string;
-    href?: string;
-    icon?: React.ComponentType<{ className?: string }>;
-    children?: MenuItem[];
-    roles?: string[];
-    permissions?: string[];
-};
-
-const ROLE_SUPER_ADMIN = 'Super Administrator';
-const ROLE_REO = 'Regional Education Officer (REO)';
-const ROLE_DEO = 'District Education Officer (DEO)';
-const ROLE_DAO = 'District Academic Officer';
-const ROLE_HOS = 'Head of School';
-const ROLE_AM = 'Academic Master/Mistress';
-const ROLE_TEACHER = 'Subject Teacher';
-const ROLE_STUDENT = 'Student';
-const ROLE_PARENT = 'Parent';
+import {
+    ADMIN_ROLES,
+    DISTRICT_ROLES,
+    getConsoleLabel,
+    getConsoleProfile,
+    LEARNER_ROLES,
+    MenuItem,
+    OPS_ROLES,
+    REGIONAL_ROLES,
+    ROLE_AM,
+    ROLE_DAO,
+    ROLE_DEO,
+    ROLE_HOS,
+    ROLE_PARENT,
+    ROLE_REO,
+    ROLE_STUDENT,
+    ROLE_SUPER_ADMIN,
+    ROLE_TEACHER,
+    SCHOOL_ROLES,
+    TEACHER_ROLES,
+} from '@/lib/console-config';
 
 const canAccessMenuItem = (
     item: MenuItem,
@@ -138,57 +144,6 @@ const filterMenuItems = (items: MenuItem[], user: { role?: string; permissions?:
             return canAccessMenuItem(item, user) ? item : null;
         })
         .filter((item): item is MenuItem => item !== null);
-
-const menu: MenuItem[] = [
-    { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { title: 'Administration', href: '/users', icon: ShieldCheck, roles: [ROLE_SUPER_ADMIN] },
-    { title: 'Academic Setup', href: '/academic-years', icon: GraduationCap, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM] },
-    { title: 'Regions', href: '/regions', icon: House, roles: [ROLE_SUPER_ADMIN, ROLE_REO] },
-    { title: 'Districts', href: '/districts', icon: Layers3, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO] },
-    { title: 'Schools Management', href: '/schools', icon: School, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM] },
-    { title: 'Students Management', href: '/students', icon: Users2, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER] },
-    { title: 'Examinations', href: '/examinations', icon: ClipboardList, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER] },
-    { title: 'Marks Entry & Moderation', href: '/marks/manual-entry', icon: Table2, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER] },
-    { title: 'Results Management', href: '/results/process', icon: FileBarChart2, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT] },
-    {
-        title: 'Reports & Analytics',
-        icon: FileBarChart2,
-        roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT],
-        children: [
-            {
-                title: 'Reports',
-                icon: FileBarChart2,
-                children: [
-                    { title: 'Dashboard', href: '/reports', icon: FileBarChart2 },
-                    { title: 'National', href: '/reports/national', icon: ShieldCheck },
-                    { title: 'Regions', href: '/reports/regions', icon: House },
-                    { title: 'Districts', href: '/reports/districts', icon: Building2 },
-                    { title: 'Schools', href: '/reports/schools', icon: School },
-                    { title: 'Students', href: '/reports/students', icon: Users2 },
-                    { title: 'AI Insights', href: '/reports/ai-insights', icon: Stars },
-                ],
-            },
-            {
-                title: 'Analytics',
-                icon: BarChart3,
-                children: [
-                    { title: 'School Analysis', href: '/analytics/schools', icon: School },
-                    { title: 'Subject Analysis', href: '/analytics/subjects', icon: BookOpen },
-                    { title: 'Student Analysis', href: '/analytics/students', icon: Users2 },
-                    { title: 'Gender Analysis', href: '/analytics/gender', icon: Users2 },
-                    { title: 'Performance Trends', href: '/analytics/performance-trends', icon: ChartColumn },
-                    { title: 'Rankings Analysis', href: '/analytics/rankings', icon: Radar },
-                    { title: 'Comparative Analysis', href: '/analytics/comparative', icon: BarChart3 },
-                    { title: 'Trend Predictions', href: '/analytics/predictions', icon: Stars },
-                ],
-            },
-        ],
-    },
-    { title: 'AI Intelligence', href: '/ai', icon: BrainCircuit, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM] },
-    { title: 'Notifications', href: '/notifications/sms', icon: BellRing, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM] },
-    { title: 'System Settings', href: '/settings/general', icon: Settings2, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO] },
-    { title: 'Support & Help', href: '/help/user-guide', icon: BookOpen, roles: [ROLE_SUPER_ADMIN, ROLE_REO, ROLE_DEO, ROLE_DAO, ROLE_HOS, ROLE_AM, ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT] },
-];
 
 const isMenuItemActive = (item: MenuItem, pathname: string): boolean => {
     if (item.href && item.href === pathname) {
@@ -287,7 +242,7 @@ const WelcomePage = () => (
             </div>
         </div>
         <footer className="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
-            Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
+            Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> Â· v1.0.0
         </footer>
     </div>
 );
@@ -318,7 +273,7 @@ const LoginPage = () => {
             }
             localStorage.setItem('user', JSON.stringify(data.user));
             localStorage.setItem('token', data.token);
-            window.location.href = '/dashboard';
+            window.location.href = getConsoleProfile(data.user?.role).home;
         } catch (err: any) {
             setError(err.message || 'An error occurred during login');
         } finally {
@@ -381,7 +336,7 @@ const LoginPage = () => {
                 </div>
             </div>
             <footer className="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
-                Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
+                Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> Â· v1.0.0
             </footer>
         </div>
     );
@@ -392,7 +347,15 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
     const [mobileOpen, setMobileOpen] = React.useState(false);
     const { pathname } = useLocation();
     const currentUser = useAppSelector(selectCurrentUser);
-    const visibleMenu = React.useMemo(() => filterMenuItems(menu, currentUser), [currentUser]);
+    const getInitials = useInitials();
+    const consoleProfile = React.useMemo(() => getConsoleProfile(currentUser?.role), [currentUser?.role]);
+    const visibleMenu = React.useMemo(
+        () => filterMenuItems(consoleProfile.menu, currentUser),
+        [consoleProfile.menu, currentUser],
+    );
+    const roleLabel = currentUser?.role ?? 'Guest';
+    const consoleLabel = consoleProfile.label;
+    const userInitials = getInitials(currentUser?.name ?? 'U');
 
     React.useEffect(() => {
         if (typeof document !== 'undefined') {
@@ -475,8 +438,8 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                 className={`fixed inset-y-0 left-0 z-50 shrink-0 border-r border-slate-200 bg-white px-4 py-5 transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
                     } ${collapsed ? 'w-[92px]' : 'w-[280px] sm:w-[320px]'}`}
             >
-                <div className="mb-4 flex items-center justify-between gap-3 px-1">
-                    <Link href="/dashboard" className="min-w-0 flex-1">
+                <div className={`mb-4 flex ${collapsed ? 'flex-col items-center justify-center gap-3' : 'items-center justify-between gap-3'} px-1`}>
+                    <Link to="/dashboard" className={collapsed ? '' : 'min-w-0 flex-1'}>
                         {!collapsed ? (
                             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
                                 <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm">
@@ -484,7 +447,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                                 </span>
                                 <div className="min-w-0">
                                     <div className="truncate text-[15px] font-black tracking-tight text-[#0F4C81]">IDEMS</div>
-                                    <div className="truncate text-[11px] uppercase tracking-[0.22em] text-slate-500">District Console</div>
+                                    <div className="truncate text-[11px] uppercase tracking-[0.22em] text-slate-500">{consoleLabel}</div>
                                 </div>
                             </div>
                         ) : (
@@ -517,17 +480,9 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
                     </button>
                 </div>
 
-                <div className={`max-h-[calc(100dvh-190px)] space-y-2 overflow-y-auto pr-1 scrollbar-hide ${collapsed ? 'mt-4' : ''}`}>
+                <div className={`max-h-[calc(100dvh-190px)] space-y-2 overflow-y-auto pr-1 scrollbar-hover ${collapsed ? 'mt-4' : ''}`}>
                     {renderItems(visibleMenu)}
                 </div>
-
-                {collapsed && (
-                    <div className="mt-4 hidden justify-center lg:flex">
-                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
-                            <AppLogoIcon className="h-full w-full object-cover" />
-                        </span>
-                    </div>
-                )}
 
                 {!collapsed && (
                     <button
@@ -551,58 +506,95 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
             </aside>
 
             {/* Main Content */}
-            <div className="flex flex-1 flex-col min-w-0 min-h-0">
-                {/* Mobile Header Topbar */}
-                <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
-                    <div className="flex items-center gap-3">
+            <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-slate-50">
+                {/* Clean Unified Top Header */}
+                <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 md:px-8">
+                    {/* Left: Mobile Toggle Menu Icon + Dynamic Breadcrumb Navigation */}
+                    <div className="flex items-center gap-3 min-w-0">
                         <button
+                            type="button"
                             onClick={() => setMobileOpen(true)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            className="inline-flex lg:hidden h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:outline-none"
+                            aria-label="Open sidebar"
                         >
                             <Menu className="h-5 w-5" />
                         </button>
-                        <div className="text-lg font-black tracking-tight text-[#0F4C81]">IDEMS</div>
+                        <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-600 truncate">
+                            <span className="text-[#0F4C81] hover:underline cursor-pointer" onClick={() => window.location.href='/dashboard'}>IDEMS</span>
+                            {pathname !== '/dashboard' && (
+                                <>
+                                    <span className="text-slate-300">/</span>
+                                    <span className="text-slate-900 font-extrabold capitalize truncate">
+                                        {pathname.split('/').filter(Boolean).map(x => {
+                                            if (!isNaN(Number(x)) || x.length > 20) return 'details';
+                                            return x.replace(/-/g, ' ');
+                                        }).join(' / ')}
+                                    </span>
+                                </>
+                            )}
+                            {pathname === '/dashboard' && (
+                                <>
+                                    <span className="text-slate-300">/</span>
+                                    <span className="text-slate-900 font-extrabold">Dashboard</span>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm transition outline-none hover:border-slate-300">
-                                    <AppLogoIcon className="h-full w-full object-cover" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-xl p-1">
-                                <DropdownMenuLabel className="px-2 py-2">
-                                    <div className="flex flex-col space-y-1">
-                                        <p className="text-sm font-semibold text-slate-900 leading-none">
-                                            {currentUser?.name ?? 'User'}
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            {currentUser?.email ?? ''}
-                                        </p>
-                                    </div>
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
-                                    <NavLink to="/settings/general" className="flex items-center w-full">
-                                        <Settings2 className="mr-2 h-4 w-4" />
-                                        <span>System Settings</span>
-                                    </NavLink>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={handleLogout} className="rounded-lg cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700">
-                                    <LogOut className="mr-2 h-4 w-4" />
-                                    <span>Sign Out</span>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
+
+                    {/* Right: Small profile icon and dropdown */}
+                    {currentUser && (
+                        <div className="flex items-center gap-3">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm transition outline-none hover:border-slate-300 hover:shadow cursor-pointer"
+                                        aria-label="Open profile menu"
+                                    >
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarFallback className="bg-[#0F4C81] text-xs font-black text-white">
+                                                {userInitials}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-60 rounded-2xl p-1 shadow-lg border border-slate-100 bg-white">
+                                    <DropdownMenuLabel className="px-2 py-2">
+                                        <div className="flex flex-col space-y-1">
+                                            <p className="text-sm font-semibold leading-none text-slate-900">
+                                                {currentUser.name}
+                                            </p>
+                                            <p className="text-xs text-slate-500 truncate">
+                                                {currentUser.email}
+                                            </p>
+                                            <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[#0F4C81]/10 px-2.5 py-0.5 text-[11px] font-semibold text-[#0F4C81]">
+                                                {roleLabel}
+                                            </span>
+                                        </div>
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild className="rounded-xl cursor-pointer">
+                                        <NavLink to={consoleProfile.home} className="flex w-full items-center">
+                                            <Settings2 className="mr-2 h-4 w-4" />
+                                            <span>Go to Console</span>
+                                        </NavLink>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleLogout} className="rounded-xl cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-700">
+                                        <LogOut className="mr-2 h-4 w-4" />
+                                        <span>Sign Out</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
                 </header>
 
-                <main className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 pb-4 w-full max-w-full">
+                <main className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 md:p-6 pb-4 w-full max-w-full">
                     <div className="flex-grow">
                         {children}
                     </div>
-                    <footer className="w-full border-t border-slate-100 mt-8 pt-4 pb-2 text-center text-xs text-slate-500">
+                    <footer className="w-full border-t border-slate-200/80 mt-8 pt-4 pb-2 text-center text-xs text-slate-500">
                         Powered By <a href="https://nativetechnology.africa/" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0F4C81] hover:underline">Native Technology</a> · v1.0.0
                     </footer>
                 </main>
@@ -611,38 +603,73 @@ const Shell = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-const DashboardPage = () => (
-    <Shell>
-        <div className="max-w-7xl mx-auto">
-            <h1 className="text-3xl font-black tracking-tight text-[#0F4C81]">District Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">Welcome back! Here's a summary of your district's performance.</p>
+const DashboardPage = () => {
+    const currentUser = useAppSelector(selectCurrentUser);
+    const profile = React.useMemo(() => getConsoleProfile(currentUser?.role), [currentUser?.role]);
+    const getInitials = useInitials();
+    const roleLabel = currentUser?.role ?? 'Guest';
+    const userInitials = getInitials(currentUser?.name ?? 'U');
 
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                    { label: 'Total Schools', value: '142', icon: School, color: 'from-[#0F4C81] to-[#1a6ab1]' },
-                    { label: 'Registered Students', value: '45,231', icon: Users2, color: 'from-emerald-500 to-emerald-600' },
-                    { label: 'Active Examinations', value: '3', icon: FileSpreadsheet, color: 'from-blue-500 to-blue-600' },
-                    { label: 'Pending Transfers', value: '84', icon: CalendarDays, color: 'from-amber-500 to-amber-600' },
-                ].map((stat) => (
-                    <div key={stat.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${stat.color} p-5 text-white shadow-md`}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{stat.label}</p>
-                                <p className="mt-1 text-3xl font-black">{stat.value}</p>
-                            </div>
-                            <stat.icon className="h-10 w-10 opacity-20" />
+    return (
+        <Shell>
+            <div className="mx-auto max-w-7xl space-y-6">
+                {currentUser && (
+                    <div className="rounded-[28px] border border-[#0F4C81]/15 bg-gradient-to-r from-[#0F4C81]/5 to-slate-50 p-6 shadow-sm flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#0F4C81]">
+                                Welcome back
+                            </p>
+                            <h1 className="mt-1 truncate text-3xl font-black tracking-tight text-slate-900">
+                                {currentUser.name}
+                            </h1>
+                            <p className="mt-1 truncate text-sm text-slate-500">
+                                {currentUser.email} · <span className="font-semibold text-[#0F4C81]">{roleLabel}</span>
+                            </p>
+                        </div>
+                        <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-full bg-[#0F4C81]/10 text-xl font-black text-[#0F4C81] shadow-inner">
+                            {userInitials}
                         </div>
                     </div>
-                ))}
+                )}
+
+                <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">{profile.label}</p>
+                    <h1 className="mt-2 text-2xl font-black tracking-tight text-[#0F4C81]">{profile.dashboard.title}</h1>
+                    <p className="mt-1 text-sm text-slate-500">{profile.dashboard.subtitle}</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {profile.dashboard.cards.map((stat) => (
+                        <div key={stat.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                            <div className="flex items-center justify-between">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{stat.label}</p>
+                                    <p className="mt-2 text-3xl font-black text-slate-900">{stat.value}</p>
+                                </div>
+                                <div className="rounded-xl bg-[#0F4C81]/10 p-3 flex-shrink-0">
+                                    <stat.icon className="h-6 w-6 text-[#0F4C81]" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
-        </div>
-    </Shell>
-);
+        </Shell>
+    );
+};
 
 const PageShell = ({ children }: { children: React.ReactNode }) => <Shell>{children}</Shell>;
 
 const UnauthorizedPage = () => <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-900"><h2>Unauthorized Access</h2></div>;
 const NotFoundPage = () => <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-900"><h2>404 - Page Not Found</h2></div>;
+
+const MANAGE_USERS_ROLES = ADMIN_ROLES;
+const REGIONAL_DATA_ROLES = REGIONAL_ROLES;
+const DISTRICT_DATA_ROLES = DISTRICT_ROLES;
+const SCHOOL_DATA_ROLES = SCHOOL_ROLES;
+const OPERATIONAL_ROLES = [...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...OPS_ROLES];
+const LEARNER_DATA_ROLES = [ROLE_STUDENT, ROLE_PARENT];
+const ALL_PORTAL_ROLES = [...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...SCHOOL_ROLES, ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT];
 
 const AppRoutes = () => (
     <Routes>
@@ -652,40 +679,13 @@ const AppRoutes = () => (
         <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
 
-            {/* Administration / Identity Console */}
-            <Route element={<ProtectedRoute allowedPermissions={['manage_users']} />}>
+            <Route element={<ProtectedRoute allowedRoles={MANAGE_USERS_ROLES} />}>
                 <Route path="/users" element={<PageShell><AdminDashboard /></PageShell>} />
-            </Route>
-            <Route element={<ProtectedRoute allowedPermissions={['manage_roles']} />}>
                 <Route path="/roles" element={<PageShell><AdminDashboard /></PageShell>} />
-            </Route>
-            <Route element={<ProtectedRoute allowedPermissions={['manage_permissions']} />}>
                 <Route path="/permissions" element={<PageShell><AdminDashboard /></PageShell>} />
-            </Route>
-            <Route element={<ProtectedRoute allowedPermissions={['view_audit_logs']} />}>
                 <Route path="/audit/user-activities" element={<PageShell><AdminDashboard /></PageShell>} />
                 <Route path="/audit-logs" element={<PageShell><AdminDashboard /></PageShell>} />
-            </Route>
-
-            {/* School / Region Setup */}
-            <Route path="/schools" element={<PageShell><SchoolsPage /></PageShell>} />
-            <Route path="/schools/:schoolId" element={<PageShell><SchoolDetailPage /></PageShell>} />
-            <Route path="/school-categories" element={<PageShell><SchoolsPage /></PageShell>} />
-            <Route path="/school-statistics" element={<PageShell><SchoolsPage /></PageShell>} />
-            <Route path="/school-performance-history" element={<PageShell><SchoolsPage /></PageShell>} />
-            <Route path="/regions" element={<PageShell><RegionsPage /></PageShell>} />
-            <Route path="/districts" element={<PageShell><DistrictsPage /></PageShell>} />
-
-            {/* Academic Setup */}
-            <Route path="/academic-years" element={<PageShell><AcademicSetupPage /></PageShell>} />
-            <Route path="/class-levels" element={<PageShell><AcademicSetupPage /></PageShell>} />
-            <Route path="/subjects" element={<PageShell><AcademicSetupPage /></PageShell>} />
-            <Route path="/subject-groups" element={<PageShell><AcademicSetupPage /></PageShell>} />
-            <Route path="/grading-systems" element={<PageShell><AcademicSetupPage /></PageShell>} />
-            <Route path="/division-rules" element={<PageShell><AcademicSetupPage /></PageShell>} />
-
-            {/* System Settings */}
-            <Route element={<ProtectedRoute allowedPermissions={['manage_settings']} />}>
+                <Route path="/security" element={<PageShell><AdminDashboard /></PageShell>} />
                 <Route path="/settings/general" element={<PageShell><SystemSettingsPage /></PageShell>} />
                 <Route path="/settings/sms" element={<PageShell><SystemSettingsPage /></PageShell>} />
                 <Route path="/settings/ai" element={<PageShell><SystemSettingsPage /></PageShell>} />
@@ -693,109 +693,139 @@ const AppRoutes = () => (
                 <Route path="/settings/backup" element={<PageShell><SystemSettingsPage /></PageShell>} />
             </Route>
 
-            {/* Students Management */}
-            <Route path="/students" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/register" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/import" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/promotions" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/transfers" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/duplicates" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/students/performance-history" element={<PageShell><StudentsPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={REGIONAL_DATA_ROLES} />}>
+                <Route path="/regions" element={<PageShell><RegionsPage /></PageShell>} />
+                <Route path="/reports/regions" element={<PageShell><RegionsReportPage /></PageShell>} />
+                <Route path="/reports/regions/:regionId" element={<PageShell><RegionReportPage /></PageShell>} />
+                <Route path="/reports/regions/:regionId/details" element={<PageShell><RegionalDetailReportPage /></PageShell>} />
+            </Route>
 
-            {/* Candidates */}
-            <Route path="/candidates/register" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/candidates/registered" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/candidates/import" element={<PageShell><StudentsPage /></PageShell>} />
-            <Route path="/candidates/verification" element={<PageShell><StudentsPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={DISTRICT_DATA_ROLES} />}>
+                <Route path="/districts" element={<PageShell><DistrictsPage /></PageShell>} />
+                <Route path="/reports/districts" element={<PageShell><DistrictsReportPage /></PageShell>} />
+                <Route path="/reports/districts/:districtId" element={<PageShell><DistrictReportPage /></PageShell>} />
+                <Route path="/reports/districts/:districtId/details" element={<PageShell><DistrictDetailReportPage /></PageShell>} />
+            </Route>
 
-            {/* Examinations Management */}
-            <Route path="/examinations" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/create" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/calendar" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/timetable" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/subjects/assign" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/subjects/configuration" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examinations/subjects/papers" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examination-types" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examination-centers" element={<PageShell><ExamsPage /></PageShell>} />
-            <Route path="/examination-centers/statistics" element={<PageShell><ExamsPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={SCHOOL_DATA_ROLES} />}>
+                <Route path="/schools/register" element={<PageShell><SchoolsPage /></PageShell>} />
+                <Route path="/schools" element={<PageShell><SchoolsPage /></PageShell>} />
+                <Route path="/schools/:schoolId" element={<PageShell><SchoolDetailPage /></PageShell>} />
+                <Route path="/school-categories" element={<PageShell><SchoolsPage /></PageShell>} />
+                <Route path="/school-statistics" element={<PageShell><SchoolsPage /></PageShell>} />
+                <Route path="/school-performance-history" element={<PageShell><SchoolsPage /></PageShell>} />
+                <Route path="/academic-years" element={<PageShell><AcademicSetupPage /></PageShell>} />
+                <Route path="/class-levels" element={<PageShell><AcademicSetupPage /></PageShell>} />
+                <Route path="/subjects" element={<PageShell><AcademicSetupPage /></PageShell>} />
+                <Route path="/subject-groups" element={<PageShell><AcademicSetupPage /></PageShell>} />
+                <Route path="/grading-systems" element={<PageShell><AcademicSetupPage /></PageShell>} />
+                <Route path="/division-rules" element={<PageShell><AcademicSetupPage /></PageShell>} />
+            </Route>
 
-            {/* Marks Management */}
-            <Route path="/marks" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/manual-entry" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/spreadsheet" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/import" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/bulk-update" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/verification" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/practical-entry" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/practical-approval" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/practical-summary" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/review" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/adjust" element={<PageShell><MarksEntryPage /></PageShell>} />
-            <Route path="/marks/moderation-logs" element={<PageShell><MarksEntryPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={TEACHER_ROLES} />}>
+                <Route path="/students" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/register" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/import" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/subjects" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/promotions" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/transfers" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/duplicates" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/students/performance-history" element={<PageShell><StudentsPage /></PageShell>} />
+                <Route path="/candidates" element={<PageShell><CandidatesPage /></PageShell>} />
+                <Route path="/candidates/registered" element={<Navigate to="/candidates" replace />} />
+                <Route path="/candidates/register" element={<Navigate to="/candidates" replace />} />
+            </Route>
 
-            {/* Results Management */}
-            <Route path="/results/process" element={<PageShell><ResultsPage /></PageShell>} />
-            <Route path="/results/reprocess" element={<PageShell><ResultsPage /></PageShell>} />
-            <Route path="/results/processing-history" element={<PageShell><ResultsPage /></PageShell>} />
-            <Route path="/results/publish" element={<PageShell><ResultsPage /></PageShell>} />
-            <Route path="/results/unpublish" element={<PageShell><ResultsPage /></PageShell>} />
-            <Route path="/results/publication-history" element={<PageShell><ResultsPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={OPERATIONAL_ROLES} />}>
+                <Route path="/examinations" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/create" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/calendar" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/timetable" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/subjects/assign" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/subjects/configuration" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examinations/subjects/papers" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examination-types" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examination-centers" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/examination-centers/statistics" element={<PageShell><ExamsPage /></PageShell>} />
+                <Route path="/marks" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/manual-entry" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/spreadsheet" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/import" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/bulk-update" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/verification" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/practical-entry" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/practical-approval" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/practical-summary" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/review" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/adjust" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/marks/moderation-logs" element={<PageShell><MarksEntryPage /></PageShell>} />
+                <Route path="/results/process" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route path="/results/reprocess" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route path="/results/processing-history" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route path="/results/publish" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route path="/results/unpublish" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route path="/results/publication-history" element={<PageShell><ResultsPage /></PageShell>} />
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...SCHOOL_ROLES, ROLE_TEACHER]} />}>
+                    <Route path="/reports" element={<PageShell><ReportsDashboardPage /></PageShell>} />
+                    <Route path="/reports/schools" element={<PageShell><SchoolsReportPage /></PageShell>} />
+                    <Route path="/reports/schools/:schoolId" element={<PageShell><SchoolReportPage /></PageShell>} />
+                    <Route path="/reports/schools/:schoolId/details" element={<PageShell><SchoolDetailReportPage /></PageShell>} />
+                    <Route path="/reports/students" element={<PageShell><StudentsReportPage /></PageShell>} />
+                    <Route path="/reports/students/:studentId" element={<PageShell><StudentsReportPage /></PageShell>} />
+                    <Route path="/reports/ai-insights" element={<PageShell><InsightsReportPage /></PageShell>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES]} />}>
+                    <Route path="/reports/national" element={<PageShell><NationalReportPage /></PageShell>} />
+                    <Route path="/reports/national/details" element={<PageShell><NationalDetailReportPage /></PageShell>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES]} />}>
+                    <Route path="/reports/regions" element={<PageShell><RegionsReportPage /></PageShell>} />
+                    <Route path="/reports/regions/:regionId" element={<PageShell><RegionReportPage /></PageShell>} />
+                    <Route path="/reports/regions/:regionId/details" element={<PageShell><RegionalDetailReportPage /></PageShell>} />
+                    <Route path="/reports/districts" element={<PageShell><DistrictsReportPage /></PageShell>} />
+                    <Route path="/reports/districts/:districtId" element={<PageShell><DistrictReportPage /></PageShell>} />
+                    <Route path="/reports/districts/:districtId/details" element={<PageShell><DistrictDetailReportPage /></PageShell>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...SCHOOL_ROLES, ROLE_TEACHER]} />}>
+                    <Route path="/analytics/schools" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/subjects" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/students" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/gender" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/performance-trends" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/rankings" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/comparative" element={<PageShell><ReportsPage /></PageShell>} />
+                    <Route path="/analytics/predictions" element={<PageShell><ReportsPage /></PageShell>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...SCHOOL_ROLES]} />}>
+                    <Route path="/ai" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/ask" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/history" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/saved-analyses" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/performance-analysis" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/risk-detection" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/recommendations" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/executive-summaries" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/trend-analysis" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/weak-subjects" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/best-schools" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/at-risk-students" element={<PageShell><AiPage /></PageShell>} />
+                    <Route path="/ai/improvements" element={<PageShell><AiPage /></PageShell>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={[...ADMIN_ROLES, ...REGIONAL_ROLES, ...DISTRICT_ROLES, ...SCHOOL_ROLES]} />}>
+                    <Route path="/notifications/sms" element={<PageShell><NotificationsPage /></PageShell>} />
+                    <Route path="/notifications/email" element={<PageShell><NotificationsPage /></PageShell>} />
+                    <Route path="/notifications/templates" element={<PageShell><NotificationsPage /></PageShell>} />
+                    <Route path="/notifications/delivery-logs" element={<PageShell><NotificationsPage /></PageShell>} />
+                </Route>
+            </Route>
 
-            {/* Reports */}
-            <Route path="/reports" element={<PageShell><ReportsDashboardPage /></PageShell>} />
-            <Route path="/reports/national" element={<PageShell><NationalReportPage /></PageShell>} />
-            <Route path="/reports/national/details" element={<PageShell><NationalDetailReportPage /></PageShell>} />
-            <Route path="/reports/regions" element={<PageShell><RegionsReportPage /></PageShell>} />
-            <Route path="/reports/regions/:regionId" element={<PageShell><RegionReportPage /></PageShell>} />
-            <Route path="/reports/regions/:regionId/details" element={<PageShell><RegionalDetailReportPage /></PageShell>} />
-            <Route path="/reports/districts" element={<PageShell><DistrictsReportPage /></PageShell>} />
-            <Route path="/reports/districts/:districtId" element={<PageShell><DistrictReportPage /></PageShell>} />
-            <Route path="/reports/districts/:districtId/details" element={<PageShell><DistrictDetailReportPage /></PageShell>} />
-            <Route path="/reports/schools" element={<PageShell><SchoolsReportPage /></PageShell>} />
-            <Route path="/reports/schools/:schoolId" element={<PageShell><SchoolReportPage /></PageShell>} />
-            <Route path="/reports/schools/:schoolId/details" element={<PageShell><SchoolDetailReportPage /></PageShell>} />
-            <Route path="/reports/students" element={<PageShell><StudentsReportPage /></PageShell>} />
-            <Route path="/reports/students/:studentId" element={<PageShell><StudentsReportPage /></PageShell>} />
-            <Route path="/reports/ai-insights" element={<PageShell><InsightsReportPage /></PageShell>} />
-
-            {/* Analytics */}
-            <Route path="/analytics/schools" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/subjects" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/students" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/gender" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/performance-trends" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/rankings" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/comparative" element={<PageShell><ReportsPage /></PageShell>} />
-            <Route path="/analytics/predictions" element={<PageShell><ReportsPage /></PageShell>} />
-
-            {/* AI Intelligence */}
-            <Route path="/ai" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/ask" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/history" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/saved-analyses" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/performance-analysis" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/risk-detection" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/recommendations" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/executive-summaries" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/trend-analysis" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/weak-subjects" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/best-schools" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/at-risk-students" element={<PageShell><AiPage /></PageShell>} />
-            <Route path="/ai/improvements" element={<PageShell><AiPage /></PageShell>} />
-
-            {/* Notifications */}
-            <Route path="/notifications/sms" element={<PageShell><NotificationsPage /></PageShell>} />
-            <Route path="/notifications/email" element={<PageShell><NotificationsPage /></PageShell>} />
-            <Route path="/notifications/templates" element={<PageShell><NotificationsPage /></PageShell>} />
-            <Route path="/notifications/delivery-logs" element={<PageShell><NotificationsPage /></PageShell>} />
-
-            {/* Help & Support */}
-            <Route path="/help/user-guide" element={<PageShell><HelpPage /></PageShell>} />
-            <Route path="/help/documentation" element={<PageShell><HelpPage /></PageShell>} />
-            <Route path="/help/faqs" element={<PageShell><HelpPage /></PageShell>} />
-            <Route path="/help/support" element={<PageShell><HelpPage /></PageShell>} />
-            <Route path="/help/about" element={<PageShell><HelpPage /></PageShell>} />
+            <Route element={<ProtectedRoute allowedRoles={ALL_PORTAL_ROLES} />}>
+                <Route path="/help/user-guide" element={<PageShell><HelpPage /></PageShell>} />
+                <Route path="/help/documentation" element={<PageShell><HelpPage /></PageShell>} />
+                <Route path="/help/faqs" element={<PageShell><HelpPage /></PageShell>} />
+                <Route path="/help/support" element={<PageShell><HelpPage /></PageShell>} />
+                <Route path="/help/about" element={<PageShell><HelpPage /></PageShell>} />
+            </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />
     </Routes>
@@ -803,3 +833,5 @@ const AppRoutes = () => (
 
 
 export default AppRoutes;
+
+

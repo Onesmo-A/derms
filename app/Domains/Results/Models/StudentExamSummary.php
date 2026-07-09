@@ -23,6 +23,7 @@ class StudentExamSummary extends Model
         'division_points',
         'passed_subjects_count',
         'failed_subjects_count',
+        'region_position',
         'school_position',
         'district_position',
         'status',

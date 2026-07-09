@@ -316,7 +316,7 @@ export default function ReportsPage() {
             )}
 
             {/* Submenu tabs */}
-            <div className="flex gap-2 overflow-x-auto whitespace-nowrap rounded-2xl border border-slate-200 bg-white p-2 shadow-sm scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto whitespace-nowrap rounded-2xl border border-slate-200 bg-white p-2 shadow-sm scrollbar-hover">
                 {[
                     { id: 'overview', label: 'Overview', icon: ShieldCheck },
                     { id: 'student', label: 'Student Slips', icon: UserCheck },
@@ -610,7 +610,7 @@ export default function ReportsPage() {
                             {/* Aggregates division and average grades grid */}
                             <div className="space-y-4">
                                 <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">I. Grade & Divisions Aggregates</h4>
-                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 scrollbar-hover">
                                     <table className="w-full text-center text-xs border-collapse">
                                         <thead className="bg-slate-50 font-bold text-slate-600 divide-y divide-x border-b">
                                             <tr>
@@ -745,7 +745,7 @@ export default function ReportsPage() {
                             {/* Student lists performance details (with subject columns) */}
                             <div className="space-y-3">
                                 <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">II. Candidate Performance Details</h4>
-                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 scrollbar-hover">
                                     <table className="min-w-full text-left text-xs border-collapse">
                                         <thead className="bg-[#0F4C81] text-white font-bold text-center">
                                             <tr>
@@ -856,7 +856,7 @@ export default function ReportsPage() {
                         </div>
 
                         <div className="border rounded-2xl overflow-hidden">
-                            <div className="overflow-x-auto w-full">
+                            <div className="overflow-x-auto w-full scrollbar-hover">
                                 <table className="w-full text-left text-sm text-gray-500">
                                     <thead className="bg-slate-50 text-xs uppercase text-gray-700 font-bold border-b">
                                         <tr>

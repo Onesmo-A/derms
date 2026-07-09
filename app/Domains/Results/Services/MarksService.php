@@ -3,11 +3,13 @@
 namespace App\Domains\Results\Services;
 
 use App\Enums\ExaminationRegistrationStatus;
+use App\Domains\Examination\Models\Examination;
 use App\Domains\Examination\Models\ExaminationRegistration;
 use App\Domains\Examination\Models\ExaminationSubject;
 use App\Domains\Examination\Models\GradingSystem;
 use App\Domains\Examination\Models\GradingSystemDetail;
 use App\Domains\Results\Models\Mark;
+use App\Domains\Student\Models\StudentSubject;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,8 +25,9 @@ class MarksService
      *
      * @return array{subject_config: array<string, mixed>, candidates: array<int, array<string, mixed>>}
      */
-    public function buildGrid(string $examId, string $classLevelId, string $subjectId): array
+    public function buildGrid(string $examId, string $classLevelId, string $subjectId, ?string $schoolId = null): array
     {
+        $exam = Examination::findOrFail($examId);
         $examSubject = ExaminationSubject::where('examination_id', $examId)
             ->where('class_level_id', $classLevelId)
             ->where('subject_id', $subjectId)
@@ -34,6 +37,19 @@ class MarksService
             ->where('examination_id', $examId)
             ->where('class_level_id', $classLevelId)
             ->where('status', '!=', ExaminationRegistrationStatus::Disqualified->value)
+            ->when($schoolId, function ($query) use ($schoolId) {
+                $query->whereHas('student', function ($studentQuery) use ($schoolId) {
+                    $studentQuery->where('school_id', $schoolId);
+                });
+            })
+            ->whereHas('student', function ($query) use ($exam, $classLevelId, $subjectId) {
+                $query->whereHas('subjectRegistrations', function ($subjectQuery) use ($exam, $classLevelId, $subjectId) {
+                    $subjectQuery->where('academic_year_id', $exam->academic_year_id)
+                        ->where('class_level_id', $classLevelId)
+                        ->where('subject_id', $subjectId)
+                        ->where('status', 'registered');
+                });
+            })
             ->get();
 
         $grid = [];
@@ -63,9 +79,11 @@ class MarksService
                 'examination_subject_id' => $examSubject->id,
                 'max_marks' => $examSubject->max_marks,
                 'pass_marks' => $examSubject->pass_marks,
-                'has_practical' => $examSubject->paper_two_weight > 0,
+                'has_practical' => $examSubject->hasPracticalComponent(),
                 'paper_one_weight' => $examSubject->paper_one_weight,
                 'paper_two_weight' => $examSubject->paper_two_weight,
+                'paper_one_max_marks' => $examSubject->paper_one_max_marks ?: 100.00,
+                'paper_two_max_marks' => $examSubject->paper_two_max_marks ?: ($examSubject->hasPracticalComponent() ? 50.00 : 0.00),
             ],
             'candidates' => $grid,
         ];
@@ -103,6 +121,7 @@ class MarksService
                 $status = $entry['registration_status'];
 
                 $registration = ExaminationRegistration::findOrFail($registrationId);
+                $this->assertCandidateIsRegisteredForSubject($registration, $examSubject->id);
                 if ($registration->status->value !== $status) {
                     $registration->update(['status' => $status]);
                 }
@@ -133,16 +152,18 @@ class MarksService
 
                 $p1 = $entry['paper_one_score'] ?? 0;
                 $p2 = $entry['paper_two_score'] ?? 0;
+                $paperOneMax = (float) ($examSubject->paper_one_max_marks ?: 100.00);
+                $paperTwoMax = (float) ($examSubject->paper_two_max_marks ?: ($examSubject->hasPracticalComponent() ? 50.00 : 0.00));
 
-                if ($p1 > $examSubject->max_marks) {
-                    throw new \RuntimeException("Paper 1 score ({$p1}) exceeds subject limit.");
+                if ($p1 > $paperOneMax) {
+                    throw new \RuntimeException("Paper 1 score ({$p1}) exceeds the configured maximum of {$paperOneMax}.");
                 }
 
-                if ($examSubject->paper_two_weight > 0) {
-                    $finalScore = ($p1 * $examSubject->paper_one_weight / 100) + ($p2 * $examSubject->paper_two_weight / 100);
-                } else {
-                    $finalScore = $p1;
+                if ($examSubject->hasPracticalComponent() && $p2 > $paperTwoMax) {
+                    throw new \RuntimeException("Paper 2 score ({$p2}) exceeds the configured maximum of {$paperTwoMax}.");
                 }
+
+                $finalScore = $this->calculateWeightedFinalScore($examSubject, $p1, $p2);
 
                 if ($finalScore > $examSubject->max_marks) {
                     $finalScore = $examSubject->max_marks;
@@ -169,7 +190,7 @@ class MarksService
                     [
                         'id' => (string) Str::uuid(),
                         'paper_one_score' => $p1,
-                        'paper_two_score' => $examSubject->paper_two_weight > 0 ? $p2 : null,
+                        'paper_two_score' => $examSubject->hasPracticalComponent() ? $p2 : null,
                         'final_score' => $finalScore,
                         'grade' => $assignedGrade,
                         'points' => $assignedPoints,
@@ -200,6 +221,36 @@ class MarksService
             DB::rollBack();
 
             throw $e;
+        }
+    }
+
+    private function calculateWeightedFinalScore(ExaminationSubject $examSubject, float|int $paperOneScore, float|int $paperTwoScore): float
+    {
+        if ($examSubject->hasPracticalComponent()) {
+            return round(((((float) $paperOneScore) + ((float) $paperTwoScore)) / 150) * 100, 2);
+        }
+
+        $paperOneMax = (float) ($examSubject->paper_one_max_marks ?: 100.00);
+        if ($paperOneMax <= 0) {
+            return 0.0;
+        }
+
+        return round((((float) $paperOneScore) / $paperOneMax) * 100, 2);
+    }
+
+    private function assertCandidateIsRegisteredForSubject(ExaminationRegistration $registration, string $examinationSubjectId): void
+    {
+        $examSubject = ExaminationSubject::findOrFail($examinationSubjectId);
+
+        $hasRegistration = StudentSubject::where('student_id', $registration->student_id)
+            ->where('academic_year_id', $registration->student->academic_year_id)
+            ->where('class_level_id', $registration->class_level_id)
+            ->where('subject_id', $examSubject->subject_id)
+            ->where('status', 'registered')
+            ->exists();
+
+        if (! $hasRegistration) {
+            throw new \RuntimeException('This candidate is not registered for the selected subject.');
         }
     }
 }

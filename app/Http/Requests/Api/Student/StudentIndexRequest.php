@@ -22,7 +22,7 @@ class StudentIndexRequest extends FormRequest
             'gender' => ['nullable', 'string', 'in:M,F'],
             'status' => ['nullable', 'string', 'in:active,transferred,completed'],
             'search' => ['nullable', 'string', 'max:150'],
-            'per_page' => ['nullable', 'integer', 'min:5', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:5', 'max:200'],
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Domains\School\Models\School;
 use App\Domains\Student\Models\AcademicYear;
 use App\Domains\Student\Models\ClassLevel;
 use App\Domains\Student\Models\Student;
+use App\Domains\Student\Services\StudentSubjectService;
 use App\Domains\Student\Services\StudentExcelImportService;
 use App\Domains\Student\Services\StudentManagementService;
 use App\Http\Controllers\Controller;
@@ -21,6 +22,7 @@ class StudentController extends Controller
     public function __construct(
         private StudentManagementService $students,
         private StudentExcelImportService $excelImports,
+        private StudentSubjectService $studentSubjects,
     ) {}
 
     public function index(StudentIndexRequest $request)
@@ -50,14 +52,14 @@ class StudentController extends Controller
         );
 
         return response()->json([
-            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level']),
+            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level', 'subjectRegistrations.subject']),
             'message' => 'Student registered successfully.',
         ], 201);
     }
 
     public function show(string $id)
     {
-        $student = Student::with(['school.district.region', 'academicYear', 'classLevel', 'class_level'])->findOrFail($id);
+        $student = Student::with(['school.district.region', 'academicYear', 'classLevel', 'class_level', 'subjectRegistrations.subject'])->findOrFail($id);
         $this->authorize('view', $student);
 
         return response()->json($student);
@@ -81,7 +83,7 @@ class StudentController extends Controller
         );
 
         return response()->json([
-            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level']),
+            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level', 'subjectRegistrations.subject']),
             'message' => 'Student profile updated successfully.',
         ]);
     }
@@ -347,7 +349,7 @@ class StudentController extends Controller
         );
 
         return response()->json([
-            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level']),
+            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level', 'subjectRegistrations.subject']),
             'message' => 'Student promoted successfully.',
         ]);
     }
@@ -375,8 +377,132 @@ class StudentController extends Controller
         );
 
         return response()->json([
-            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level']),
+            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level', 'subjectRegistrations.subject']),
             'message' => 'Student transferred successfully.',
+        ]);
+    }
+
+    public function subjects(Request $request, string $id)
+    {
+        $student = Student::findOrFail($id);
+        $this->authorize('view', $student);
+
+        $academicYearId = $request->query('academic_year_id', $student->academic_year_id);
+
+        return response()->json([
+            'student' => $student->load(['school.district.region', 'academicYear', 'classLevel', 'class_level']),
+            'registrations' => $this->studentSubjects->getRegistrations($student, $academicYearId),
+            'summary' => $this->studentSubjects->getRegistrationStatus($student, $academicYearId),
+        ]);
+    }
+
+    public function syncSubjects(Request $request, string $id, AuditLogger $auditLogger)
+    {
+        $student = Student::findOrFail($id);
+        $this->authorize('update', $student);
+
+        $validated = $request->validate([
+            'academic_year_id' => ['nullable', 'uuid', 'exists:academic_years,id'],
+            'subject_ids' => ['required', 'array', 'min:' . StudentSubjectService::MIN_SUBJECTS, 'max:' . StudentSubjectService::MAX_SUBJECTS],
+            'subject_ids.*' => ['required', 'uuid', 'distinct', 'exists:subjects,id'],
+        ]);
+
+        $academicYearId = $validated['academic_year_id'] ?? null;
+        $oldSummary = $this->studentSubjects->getRegistrationStatus($student, $academicYearId);
+        $changes = $this->studentSubjects->syncRegistrations(
+            $student,
+            $validated['subject_ids'],
+            $academicYearId,
+            $request->user()?->id
+        );
+        $newSummary = $this->studentSubjects->getRegistrationStatus($student, $academicYearId);
+
+        $auditLogger->log(
+            action: 'student.subjects.updated',
+            description: 'Student subject registration updated.',
+            user: $request->user(),
+            oldValues: $oldSummary,
+            newValues: array_merge($newSummary, $changes),
+            request: $request
+        );
+
+        return response()->json([
+            'message' => 'Student subjects saved successfully.',
+            'summary' => $newSummary,
+            'changes' => $changes,
+            'registrations' => $this->studentSubjects->getRegistrations($student, $academicYearId),
+        ]);
+    }
+
+    public function bulkSyncSubjects(Request $request, AuditLogger $auditLogger)
+    {
+        $validated = $request->validate([
+            'region_id' => ['nullable', 'uuid', 'exists:regions,id'],
+            'district_id' => ['nullable', 'uuid', 'exists:districts,id'],
+            'school_id' => ['required', 'uuid', 'exists:schools,id'],
+            'academic_year_id' => ['required', 'uuid', 'exists:academic_years,id'],
+            'current_class_level_id' => ['required', 'uuid', 'exists:class_levels,id'],
+            'selected_student_ids' => ['nullable', 'array'],
+            'selected_student_ids.*' => ['required', 'uuid', 'distinct', 'exists:students,id'],
+            'subject_ids' => ['required', 'array', 'min:' . StudentSubjectService::MIN_SUBJECTS, 'max:' . StudentSubjectService::MAX_SUBJECTS],
+            'subject_ids.*' => ['required', 'uuid', 'distinct', 'exists:subjects,id'],
+        ]);
+
+        $filters = [
+            'region_id' => $validated['region_id'] ?? null,
+            'district_id' => $validated['district_id'] ?? null,
+            'school_id' => $validated['school_id'],
+            'academic_year_id' => $validated['academic_year_id'],
+            'current_class_level_id' => $validated['current_class_level_id'],
+        ];
+
+        $students = $this->students->buildIndexQuery($filters, $request->user())->get();
+
+        if (!empty($validated['selected_student_ids'])) {
+            $selectedIds = collect($validated['selected_student_ids'])->map(fn ($id) => (string) $id)->all();
+            $students = $students->whereIn('id', $selectedIds)->values();
+        }
+
+        if ($students->isEmpty()) {
+            return response()->json([
+                'message' => 'No students were found for the selected scope.',
+                'summary' => [
+                    'processed' => 0,
+                    'succeeded' => 0,
+                    'failed' => 0,
+                    'created' => 0,
+                    'updated' => 0,
+                    'dropped' => 0,
+                ],
+                'details' => [],
+            ], 200);
+        }
+
+        $result = $this->studentSubjects->syncRegistrationsForStudents(
+            $students,
+            $validated['subject_ids'],
+            $validated['academic_year_id'],
+            $request->user()?->id
+        );
+
+        $auditLogger->log(
+            action: 'student.subjects.bulk_updated',
+            description: 'Bulk subject registration updated for ' . $result['succeeded'] . ' students.',
+            user: $request->user(),
+            newValues: array_merge($filters, $result),
+            request: $request
+        );
+
+        return response()->json([
+            'message' => 'Bulk subject registration completed for ' . $result['succeeded'] . ' students.',
+            'summary' => $result,
+            'scope' => [
+                'students' => $students->count(),
+                'school_id' => $validated['school_id'],
+                'academic_year_id' => $validated['academic_year_id'],
+                'current_class_level_id' => $validated['current_class_level_id'],
+            ],
+            'details' => $result['details'],
         ]);
     }
 

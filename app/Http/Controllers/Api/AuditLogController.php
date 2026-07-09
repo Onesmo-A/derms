@@ -13,6 +13,8 @@ class AuditLogController extends Controller
      */
     public function index(Request $request)
     {
+        abort_unless($request->user()?->can('view_audit_logs'), 403);
+
         $query = AuditLog::with('user')
             ->orderBy('created_at', 'desc');
 
@@ -73,8 +75,10 @@ class AuditLogController extends Controller
     /**
      * Return a single log entry for the detail modal.
      */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
+        abort_unless($request->user()?->can('view_audit_logs'), 403);
+
         $log = AuditLog::with('user')->findOrFail($id);
 
         return response()->json([
@@ -103,8 +107,10 @@ class AuditLogController extends Controller
     /**
      * Return live activity feed — last 20 entries across all modules.
      */
-    public function live()
+    public function live(Request $request)
     {
+        abort_unless($request->user()?->can('view_audit_logs'), 403);
+
         $logs = AuditLog::with('user')
             ->orderBy('created_at', 'desc')
             ->limit(20)
@@ -130,8 +136,10 @@ class AuditLogController extends Controller
     /**
      * Return distinct module names for filter dropdowns.
      */
-    public function modules()
+    public function modules(Request $request)
     {
+        abort_unless($request->user()?->can('view_audit_logs'), 403);
+
         $modules = AuditLog::distinct()->whereNotNull('module')->orderBy('module')->pluck('module');
         return response()->json($modules);
     }

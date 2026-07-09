@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
@@ -68,6 +69,14 @@ class Student extends Model
     public function class_level(): BelongsTo
     {
         return $this->belongsTo(ClassLevel::class, 'current_class_level_id');
+    }
+
+    /**
+     * Registered subject selections for the current student lifecycle.
+     */
+    public function subjectRegistrations(): HasMany
+    {
+        return $this->hasMany(StudentSubject::class, 'student_id');
     }
 
     /**

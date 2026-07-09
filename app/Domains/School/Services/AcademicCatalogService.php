@@ -189,36 +189,57 @@ class AcademicCatalogService
 
     public function listGradingDetails()
     {
-        return GradingSystemDetail::with('gradingSystem')
-            ->orderBy('min_score', 'desc')
+        return GradingSystem::with('details')
+            ->orderBy('type')
+            ->orderBy('name')
             ->get()
-            ->map(fn ($d) => [
-                'id' => $d->id,
-                'label' => $d->grade,
-                'min_percent' => $d->min_score,
-                'max_percent' => $d->max_score,
-                'points' => $d->points,
-                'description' => $d->description,
-                'system_name' => $d->gradingSystem?->name,
-            ]);
+            ->map(function (GradingSystem $system) {
+                $details = $system->details
+                    ->when($system->type === 'division', fn ($rows) => $rows->sortBy('min_points'))
+                    ->when($system->type !== 'division', fn ($rows) => $rows->sortByDesc('min_score'))
+                    ->values()
+                    ->map(fn (GradingSystemDetail $detail) => [
+                        'id' => $detail->id,
+                        'grade' => $detail->grade,
+                        'min_score' => $detail->min_score,
+                        'max_score' => $detail->max_score,
+                        'min_points' => $detail->min_points,
+                        'max_points' => $detail->max_points,
+                        'points' => $detail->points,
+                        'description' => $detail->description,
+                    ])
+                    ->all();
+
+                return [
+                    'id' => $system->id,
+                    'name' => $system->name,
+                    'type' => $system->type,
+                    'class_level_id' => $system->class_level_id,
+                    'details' => $details,
+                ];
+            });
     }
 
     public function storeGradingDetail(array $data)
     {
         $system = GradingSystem::firstOrCreate(
-            ['name' => 'NECTA Standard', 'type' => 'subject'],
+            ['name' => 'NECTA Subject Grading', 'type' => 'subject'],
             ['id' => (string) \Illuminate\Support\Str::uuid()]
         );
 
-        $detail = GradingSystemDetail::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
-            'grading_system_id' => $system->id,
-            'grade' => $data['label'],
-            'min_score' => $data['min_percent'],
-            'max_score' => $data['max_percent'],
-            'points' => $data['points'],
-            'description' => $data['description'] ?? null,
-        ]);
+        $detail = GradingSystemDetail::updateOrCreate(
+            [
+                'grading_system_id' => $system->id,
+                'grade' => $data['label'],
+            ],
+            [
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'min_score' => $data['min_percent'],
+                'max_score' => $data['max_percent'],
+                'points' => $data['points'],
+                'description' => $data['description'] ?? null,
+            ]
+        );
 
         return [
             'id' => $detail->id,
@@ -226,6 +247,7 @@ class AcademicCatalogService
             'min_percent' => $detail->min_score,
             'max_percent' => $detail->max_score,
             'points' => $detail->points,
+            'system_name' => $system->name,
         ];
     }
 

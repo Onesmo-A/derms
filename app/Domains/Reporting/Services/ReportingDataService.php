@@ -173,6 +173,31 @@ class ReportingDataService
             ->where('class_level_id', $classLevelId)
             ->firstOrFail();
 
+        $schoolCandidatesCount = ExaminationRegistration::where('examination_id', $exam->id)
+            ->where('class_level_id', $classLevelId)
+            ->whereHas('student', function ($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            })
+            ->count();
+
+        $districtCandidatesCount = $school->district_id
+            ? ExaminationRegistration::where('examination_id', $exam->id)
+                ->where('class_level_id', $classLevelId)
+                ->whereHas('student.school', function ($q) use ($school) {
+                    $q->where('district_id', $school->district_id);
+                })
+                ->count()
+            : 0;
+
+        $regionCandidatesCount = $school->district?->region_id
+            ? ExaminationRegistration::where('examination_id', $exam->id)
+                ->where('class_level_id', $classLevelId)
+                ->whereHas('student.school.district', function ($q) use ($school) {
+                    $q->where('region_id', $school->district->region_id);
+                })
+                ->count()
+            : 0;
+
         $regionSchoolIds = School::whereHas('district', function($q) use ($school) {
             $q->where('region_id', $school->district->region_id);
         })->pluck('id');
@@ -226,6 +251,11 @@ class ReportingDataService
                 'total_marks' => $candSummary->total_marks,
                 'average_marks' => $candSummary->average_marks,
                 'school_position' => $candSummary->school_position ?? 1,
+                'school_position_total' => $schoolCandidatesCount,
+                'district_position' => $candSummary->district_position ?? null,
+                'district_position_total' => $districtCandidatesCount,
+                'region_position' => $candSummary->region_position ?? null,
+                'region_position_total' => $regionCandidatesCount,
                 'subjects' => $subjectMap
             ];
         }

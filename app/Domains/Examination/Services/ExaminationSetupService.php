@@ -9,6 +9,7 @@ use App\Domains\Examination\Models\GradingSystem;
 use App\Domains\Examination\Models\GradingSystemDetail;
 use App\Domains\School\Models\School;
 use App\Domains\Student\Models\Student;
+use App\Domains\Student\Models\StudentSubject;
 use App\Enums\ExaminationRegistrationStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -26,11 +27,38 @@ class ExaminationSetupService
                 ->delete();
 
             foreach ($subjects as $subject) {
+                $examinationSubject = \App\Domains\Examination\Models\Subject::findOrFail($subject['subject_id']);
                 $paperOneWeight = (float) $subject['paper_one_weight'];
-                $paperTwoWeight = (float) $subject['paper_two_weight'];
+                $paperTwoWeight = $examinationSubject->has_practical
+                    ? (float) $subject['paper_two_weight']
+                    : 0.00;
+                $paperOneMaxMarks = (float) ($subject['paper_one_max_marks'] ?? 100.00);
+                $paperTwoMaxMarks = $paperTwoWeight > 0
+                    ? (float) ($subject['paper_two_max_marks'] ?? 50.00)
+                    : 0.00;
 
                 if (($paperOneWeight + $paperTwoWeight) !== 100.0 && ($paperOneWeight + $paperTwoWeight) !== 100) {
                     throw new \RuntimeException('Paper 1 and Paper 2 weights must sum up to exactly 100%.');
+                }
+
+                if ($paperOneMaxMarks <= 0) {
+                    throw new \RuntimeException('Paper 1 maximum marks must be greater than zero.');
+                }
+
+                if ($paperOneMaxMarks > 100) {
+                    throw new \RuntimeException('Paper 1 maximum marks cannot exceed 100.');
+                }
+
+                if ($paperTwoWeight > 0 && $paperTwoMaxMarks <= 0) {
+                    throw new \RuntimeException('Paper 2 maximum marks must be greater than zero for practical subjects.');
+                }
+
+                if ($paperTwoMaxMarks > 50) {
+                    throw new \RuntimeException('Paper 2 maximum marks cannot exceed 50.');
+                }
+
+                if (! $examinationSubject->has_practical && $paperTwoWeight > 0) {
+                    throw new \RuntimeException("Subject {$examinationSubject->name} is not practical, so Paper 2 cannot be configured.");
                 }
 
                 ExaminationSubject::create([
@@ -42,6 +70,8 @@ class ExaminationSetupService
                     'pass_marks' => $subject['pass_marks'],
                     'paper_one_weight' => $paperOneWeight,
                     'paper_two_weight' => $paperTwoWeight,
+                    'paper_one_max_marks' => $paperOneMaxMarks,
+                    'paper_two_max_marks' => $paperTwoMaxMarks,
                 ]);
             }
         });
@@ -69,6 +99,10 @@ class ExaminationSetupService
                     ->count() + 1;
 
                 foreach ($students as $student) {
+                    if (! $this->hasCompleteSubjectRegistration($student)) {
+                        continue;
+                    }
+
                     $exists = ExaminationRegistration::where('examination_id', $exam->id)
                         ->where('student_id', $student->id)
                         ->exists();
@@ -118,6 +152,10 @@ class ExaminationSetupService
                     ->count() + 1;
 
                 foreach ($group as $student) {
+                    if (! $this->hasCompleteSubjectRegistration($student)) {
+                        continue;
+                    }
+
                     $exists = ExaminationRegistration::where('examination_id', $exam->id)
                         ->where('student_id', $student->id)
                         ->exists();
@@ -144,6 +182,17 @@ class ExaminationSetupService
 
             return $registeredCount;
         });
+    }
+
+    private function hasCompleteSubjectRegistration(Student $student): bool
+    {
+        $subjectCount = StudentSubject::where('student_id', $student->id)
+            ->where('academic_year_id', $student->academic_year_id)
+            ->where('class_level_id', $student->current_class_level_id)
+            ->where('status', 'registered')
+            ->count();
+
+        return $subjectCount >= 8 && $subjectCount <= 11;
     }
 
     /**

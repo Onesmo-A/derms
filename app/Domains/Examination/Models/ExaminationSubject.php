@@ -22,6 +22,8 @@ class ExaminationSubject extends Model
         'pass_marks',
         'paper_one_weight',
         'paper_two_weight',
+        'paper_one_max_marks',
+        'paper_two_max_marks',
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class ExaminationSubject extends Model
         'pass_marks' => 'decimal:2',
         'paper_one_weight' => 'decimal:2',
         'paper_two_weight' => 'decimal:2',
+        'paper_one_max_marks' => 'decimal:2',
+        'paper_two_max_marks' => 'decimal:2',
     ];
 
     public function examination(): BelongsTo
@@ -44,5 +48,10 @@ class ExaminationSubject extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class, 'subject_id');
+    }
+
+    public function hasPracticalComponent(): bool
+    {
+        return (bool) ($this->subject?->has_practical ?? false) && (float) $this->paper_two_weight > 0;
     }
 }

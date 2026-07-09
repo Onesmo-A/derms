@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToastFeedback } from '@/hooks/use-toast-feedback';
 import {
@@ -68,6 +69,18 @@ const apiHeaders = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token')}`,
 });
+
+const abbreviateRole = (role: string): string => {
+    if (!role) return '—';
+    if (role === 'Regional Education Officer (REO)') return 'REO';
+    if (role === 'District Education Officer (DEO)') return 'DEO';
+    if (role === 'District Academic Officer') return 'DAO';
+    if (role === 'Head of School') return 'HOS';
+    if (role === 'Academic Master/Mistress') return 'Academic';
+    if (role === 'Subject Teacher') return 'Teacher';
+    if (role === 'Super Administrator') return 'Super Admin';
+    return role;
+};
 
 const STATUS_BADGE: Record<string, string> = {
     active:    'bg-emerald-100 text-emerald-800',
@@ -269,7 +282,7 @@ function UserFormModal({ onClose, onSaved, editUser }: {
                     <h3 className="text-base font-bold text-white">{editUser ? 'Edit User' : 'Create New User'}</h3>
                     <button onClick={onClose} className="rounded-full p-1 text-white/70 hover:bg-white/20"><X className="h-5 w-5" /></button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-hover">
                     {error && <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2"><AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />{error}</div>}
 
                     <div className="grid grid-cols-3 gap-3">
@@ -324,7 +337,7 @@ function UserFormModal({ onClose, onSaved, editUser }: {
                             onValueChange={(value) => set('role', value)}
                             placeholder="Select role"
                             searchPlaceholder="Search role..."
-                            options={formMeta.roles.map((r: any) => ({ value: r.name, label: r.name }))}
+                            options={formMeta.roles.map((r: any) => ({ value: r.name, label: abbreviateRole(r.name) }))}
                             className="mt-1"
                         />
                     </div>
@@ -380,7 +393,7 @@ function UserFormModal({ onClose, onSaved, editUser }: {
                     {formMeta.permissions?.length > 0 && (
                         <div className="border-t border-slate-100 pt-3 mt-2">
                             <label className="block text-xs font-semibold text-slate-600 mb-2">Direct Permissions (Optional)</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50 scrollbar-hover">
                                 {formMeta.permissions.map((p: string) => (
                                     <label key={p} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-100 p-1 rounded transition">
                                         <input 
@@ -485,7 +498,7 @@ function UsersTab() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm scrollbar-hover">
                 <table className="w-full text-sm">
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/80">
@@ -502,14 +515,14 @@ function UsersTab() {
                         ) : users.length === 0 ? (
                             <tr><td colSpan={6} className="py-16 text-center text-slate-400 text-sm">No users found.</td></tr>
                         ) : users.map(u => {
-                            const roleName = u.roles?.[0]?.name ?? u.role ?? '—';
+                            const roleName = abbreviateRole(u.roles?.[0]?.name ?? u.role ?? '—');
                             const scope = [u.school?.name, u.district?.name, u.region?.name].filter(Boolean).join(' › ') || 'System-wide';
                             const isLocked = actionLoading?.startsWith(u.id);
                             return (
                                 <tr key={u.id} className="group hover:bg-slate-50/80 transition">
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#0F4C81] to-[#2563eb] text-white text-xs font-bold shadow-sm">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0F4C81]/10 text-xs font-black text-[#0F4C81] border border-[#0F4C81]/10 shadow-sm">
                                                 {(u.first_name?.[0] ?? '') + (u.last_name?.[0] ?? '')}
                                             </div>
                                             <div>
@@ -643,7 +656,7 @@ function RolesTab() {
                                 <div className={`h-3 w-3 rounded-full flex-shrink-0 ${ROLE_COLOR[role.color] ?? 'bg-gray-400'}`} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-bold text-slate-800 text-sm">{role.name}</span>
+                                        <span className="font-bold text-slate-800 text-sm">{abbreviateRole(role.name)}</span>
                                         <span className="rounded-full bg-white/70 border border-slate-200 px-2 py-0.5 text-xs text-slate-500">{role.scope}</span>
                                         <span className="ml-auto text-xs text-slate-400">{role.users_count} user{role.users_count !== 1 ? 's' : ''}</span>
                                     </div>
@@ -676,7 +689,7 @@ function RolesTab() {
                             <div className={`h-2 w-2 rounded-full ${ROLE_COLOR[selectedRole.color]}`} />
                             {selectedRole.scope}
                         </div>
-                        <h4 className="text-base font-bold text-slate-800">{selectedRole.name}</h4>
+                        <h4 className="text-base font-bold text-slate-800">{abbreviateRole(selectedRole.name)}</h4>
                         <p className="mt-1 text-sm text-slate-500">{selectedRole.description}</p>
                         <div className="mt-4 space-y-2">
                             <div className="flex items-center justify-between text-sm">
@@ -856,7 +869,7 @@ function ActivityLogsTab() {
             </div>
 
             {/* Log list */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm scrollbar-hover">
                 <table className="w-full text-sm">
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/80">
@@ -989,8 +1002,24 @@ const TABS = [
 type TabId = typeof TABS[number]['id'];
 
 export default function AdminDashboard() {
+    const location = useLocation();
     const [activeTab, setActiveTab] = useState<TabId>('users');
     const [summary, setSummary] = useState({ total: 0, active: 0, locked: 0, recent: 0 });
+
+    useEffect(() => {
+        const path = location.pathname;
+        if (path === '/roles') {
+            setActiveTab('roles');
+        } else if (path === '/permissions') {
+            setActiveTab('permissions');
+        } else if (path === '/audit-logs' || path === '/audit/user-activities') {
+            setActiveTab('activity');
+        } else if (path === '/security') {
+            setActiveTab('security');
+        } else {
+            setActiveTab('users');
+        }
+    }, [location.pathname]);
 
     useEffect(() => {
         // Load quick stats from the users endpoint
@@ -1013,10 +1042,10 @@ export default function AdminDashboard() {
     }, []);
 
     const stats = [
-        { label: 'Total Users',    value: summary.total,  icon: Users,       color: 'from-[#0F4C81] to-blue-600' },
-        { label: 'Active Accounts', value: summary.active, icon: UserCheck,   color: 'from-emerald-500 to-emerald-600' },
-        { label: 'Locked Accounts', value: summary.locked, icon: Lock,        color: 'from-red-500 to-red-600' },
-        { label: 'Audit Events',   value: summary.recent, icon: Activity,    color: 'from-violet-500 to-violet-600' },
+        { label: 'Total Users',     value: summary.total,  icon: Users,       bgTint: 'bg-[#0F4C81]/10', textStyle: 'text-[#0F4C81]' },
+        { label: 'Active Accounts',  value: summary.active, icon: UserCheck,   bgTint: 'bg-emerald-500/10', textStyle: 'text-emerald-700' },
+        { label: 'Locked Accounts',  value: summary.locked, icon: Lock,        bgTint: 'bg-rose-500/10', textStyle: 'text-rose-700' },
+        { label: 'Audit Events',    value: summary.recent, icon: Activity,    bgTint: 'bg-violet-500/10', textStyle: 'text-violet-700' },
     ];
 
     return (
@@ -1037,29 +1066,18 @@ export default function AdminDashboard() {
 
             {/* Summary Stats */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {stats.map(({ label, value, icon: Icon, color }) => (
-                    <div key={label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${color} p-5 text-white shadow-md`}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{label}</p>
-                                <p className="mt-2 text-3xl font-black">{value}</p>
+                {stats.map(({ label, value, icon: Icon, bgTint, textStyle }) => (
+                    <div key={label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                        <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{label}</p>
+                                <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
                             </div>
-                            <Icon className="h-8 w-8 opacity-20" />
+                            <div className={`rounded-xl ${bgTint} p-3 flex-shrink-0`}>
+                                <Icon className={`h-6 w-6 ${textStyle}`} />
+                            </div>
                         </div>
                     </div>
-                ))}
-            </div>
-
-            {/* Tab Navigation */}
-            <div className="flex gap-1 rounded-2xl bg-slate-100 p-1 overflow-x-auto">
-                {TABS.map(({ id, label, icon: Icon }) => (
-                    <button key={id} onClick={() => setActiveTab(id)}
-                        className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all whitespace-nowrap ${activeTab === id
-                            ? 'bg-white text-[#0F4C81] shadow-sm'
-                            : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}>
-                        <Icon className="h-4 w-4" />
-                        {label}
-                    </button>
                 ))}
             </div>
 

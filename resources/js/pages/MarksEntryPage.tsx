@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, Search, Sliders, CheckCircle, AlertTriangle, FileSpreadsheet, Edit3, ShieldAlert } from 'lucide-react';
+import { Loader2, Search, Sliders, CheckCircle, AlertTriangle, FileSpreadsheet, Edit3, ShieldAlert, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SubjectConfig {
@@ -11,6 +11,8 @@ interface SubjectConfig {
     has_practical: boolean;
     paper_one_weight: number;
     paper_two_weight: number;
+    paper_one_max_marks?: number;
+    paper_two_max_marks?: number;
 }
 
 interface CandidateRow {
@@ -32,6 +34,33 @@ interface MarksEntry {
     paper2: string;
     absent: boolean;
 }
+
+const calculateWeightedFinalScore = (paperOneScore: number, paperTwoScore: number, config: SubjectConfig) => {
+    if (config.has_practical) {
+        return Math.round(((((paperOneScore + paperTwoScore) / 150) * 100) * 100)) / 100;
+    }
+
+    const paperOneMax = Number(config.paper_one_max_marks ?? 100);
+    if (paperOneMax <= 0) {
+        return 0;
+    }
+
+    return Math.round(((paperOneScore / paperOneMax) * 100) * 100) / 100;
+};
+
+const clampNumericInput = (value: string, max: number) => {
+    const sanitized = value.replace(/[^\d]/g, '');
+    if (sanitized === '') {
+        return '';
+    }
+
+    const parsed = Number(sanitized);
+    if (!Number.isFinite(parsed)) {
+        return '';
+    }
+
+    return String(Math.min(parsed, max));
+};
 
 export default function MarksEntryPage() {
     const location = useLocation();
@@ -65,9 +94,17 @@ export default function MarksEntryPage() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [importMessage, setImportMessage] = useState('');
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importPreviewRows, setImportPreviewRows] = useState<any[]>([]);
+    const [previewLoaded, setPreviewLoaded] = useState(false);
+    const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+    const [previewingFile, setPreviewingFile] = useState(false);
+    const [importingFile, setImportingFile] = useState(false);
     const [activeTab, setActiveTab] = useState<'spreadsheet' | 'manual' | 'import' | 'bulk' | 'verify' | 'practical'>('spreadsheet');
     const paper1Refs = useRef<Array<HTMLInputElement | null>>([]);
     const paper2Refs = useRef<Array<HTMLInputElement | null>>([]);
+    const importFileRef = useRef<HTMLInputElement | null>(null);
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -83,6 +120,201 @@ export default function MarksEntryPage() {
             throw new Error('Session expired. Please log in again.');
         }
         return res;
+    };
+
+    const ensureImportSubjectConfig = async () => {
+        if (subjectConfig?.examination_subject_id) {
+            return subjectConfig;
+        }
+
+        if (!selectedExam || !selectedSubject || !selectedClass) {
+            throw new Error('Select exam, subject, and class level first.');
+        }
+
+        const res = await fetch(`/api/v1/marks/exams/${selectedExam}/class-levels/${selectedClass}/subjects/${selectedSubject}`, {
+            headers,
+        });
+        await handleUnauthorized(res);
+
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.message || 'Failed to resolve the selected subject configuration.');
+        }
+
+        const data: { subject_config: SubjectConfig } = await res.json();
+        if (!data.subject_config?.examination_subject_id) {
+            throw new Error('The selected exam subject could not be resolved.');
+        }
+
+        setSubjectConfig(data.subject_config);
+        return data.subject_config;
+    };
+
+    const handleDownloadImportTemplate = async () => {
+        setDownloadingTemplate(true);
+        setError('');
+        setMessage('');
+        setImportMessage('');
+
+        try {
+            if (!selectedSchool) {
+                throw new Error('Select school before downloading the template.');
+            }
+
+            const config = await ensureImportSubjectConfig();
+            const params = new URLSearchParams({
+                examination_subject_id: config.examination_subject_id,
+                school_id: selectedSchool,
+            });
+
+            const res = await fetch(`/api/v1/marks/import/template?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            await handleUnauthorized(res);
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.message || 'Failed to download the template.');
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `IDEMS_Marks_Import_Template_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            anchor.click();
+            URL.revokeObjectURL(url);
+            toast.success('Official locked template downloaded.');
+        } catch (err: any) {
+            const message = err.message || 'Failed to download the template.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setDownloadingTemplate(false);
+        }
+    };
+
+    const handleImportFileSelect = (file: File | null) => {
+        if (!file) {
+            setImportFile(null);
+            return;
+        }
+
+        const allowedExt = ['xlsx'];
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        if (!allowedExt.includes(ext)) {
+            toast.error('Only the official .xlsx template is allowed.');
+            return;
+        }
+
+        setImportFile(file);
+        setImportPreviewRows([]);
+        setPreviewLoaded(false);
+        setError('');
+        setMessage('');
+        setImportMessage('');
+    };
+
+    const handlePreviewImport = async () => {
+        setPreviewingFile(true);
+        setError('');
+        setMessage('');
+        setImportMessage('');
+
+        try {
+            if (!selectedSchool) {
+                throw new Error('Select school first.');
+            }
+            if (!importFile) {
+                throw new Error('Choose the filled Excel template before importing.');
+            }
+
+            const config = await ensureImportSubjectConfig();
+            const formData = new FormData();
+            formData.append('file', importFile);
+            formData.append('examination_subject_id', config.examination_subject_id);
+            formData.append('school_id', selectedSchool);
+            formData.append('preview', '1');
+
+            const res = await fetch('/api/v1/marks/import', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+            });
+
+            await handleUnauthorized(res);
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(body.message || 'Failed to import marks.');
+            }
+
+            setImportPreviewRows(body.preview_rows ?? []);
+            setPreviewLoaded(true);
+            const successMessage = body.message || 'Preview generated successfully.';
+            setImportMessage(`${successMessage} Review the rows below, then confirm import.`);
+            toast.success(successMessage);
+        } catch (err: any) {
+            const message = err.message || 'Failed to import marks.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setPreviewingFile(false);
+        }
+    };
+
+    const handleConfirmImport = async () => {
+        setImportingFile(true);
+        setError('');
+        setMessage('');
+        setImportMessage('');
+
+        try {
+            if (!selectedSchool) {
+                throw new Error('Select school first.');
+            }
+            if (!importFile) {
+                throw new Error('Choose the filled Excel template before importing.');
+            }
+
+            const config = await ensureImportSubjectConfig();
+            const formData = new FormData();
+            formData.append('file', importFile);
+            formData.append('examination_subject_id', config.examination_subject_id);
+            formData.append('school_id', selectedSchool);
+            formData.append('confirm', '1');
+
+            const res = await fetch('/api/v1/marks/import', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+            });
+
+            await handleUnauthorized(res);
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(body.message || 'Failed to import marks.');
+            }
+
+            const saved = Number(body.saved ?? 0);
+            const successMessage = body.message || `Imported ${saved} candidate marks successfully.`;
+            setMessage(successMessage);
+            setImportFile(null);
+            setImportPreviewRows([]);
+            setPreviewLoaded(false);
+            if (importFileRef.current) {
+                importFileRef.current.value = '';
+            }
+            toast.success(successMessage);
+            navigate('/marks/spreadsheet');
+            setActiveTab('spreadsheet');
+            await handleLoadGrid();
+        } catch (err: any) {
+            const message = err.message || 'Failed to import marks.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setImportingFile(false);
+        }
     };
 
     // ─── Tab from URL ─────────────────────────────────────────────────────────
@@ -153,8 +385,8 @@ export default function MarksEntryPage() {
             setExamSubjects([]);
             setClassLevels([]);
             setSelectedSubject('');
-            setSelectedClass('');
-            return;
+        setSelectedClass(''); 
+        return;
         }
         setLoadingExamMeta(true);
         setSelectedSubject('');
@@ -198,7 +430,14 @@ export default function MarksEntryPage() {
         setMarksData({});
         setMessage('');
         setError('');
-    }, [selectedSubject, selectedSchool, selectedClass]);
+        setImportMessage('');
+        setImportFile(null);
+        setImportPreviewRows([]);
+        setPreviewLoaded(false);
+        if (importFileRef.current) {
+            importFileRef.current.value = '';
+        }
+    }, [selectedExam, selectedSubject, selectedSchool, selectedClass]);
 
     const handleLoadGrid = async () => {
         if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
@@ -210,6 +449,7 @@ export default function MarksEntryPage() {
 
         setError('');
         setMessage('');
+        setImportMessage('');
         setLoading(true);
         setSubjectConfig(null);
         setCandidates([]);
@@ -251,6 +491,7 @@ export default function MarksEntryPage() {
         setSaving(true);
         setMessage('');
         setError('');
+        setImportMessage('');
 
         const marks = candidates.map(c => {
             const entry = marksData[c.examination_registration_id];
@@ -299,19 +540,27 @@ export default function MarksEntryPage() {
         }
     };
 
-    const tabs = [
-        { id: 'spreadsheet', label: 'Spreadsheet Entry' },
-        { id: 'manual', label: 'Manual Marks Entry' },
-        { id: 'import', label: 'Import Marks' },
-        { id: 'bulk', label: 'Bulk Update Marks' },
-        { id: 'verify', label: 'Marks Verification' },
-        { id: 'practical', label: 'Practical Entry' },
-    ];
-
     const localSubject = examSubjects.find(s => s.subject_id === selectedSubject) ?? null;
     const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
-    const paper1Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_one_weight / 100)) : 100;
-    const paper2Max = subjectConfig?.max_marks ? Math.round(subjectConfig.max_marks * (subjectConfig.paper_two_weight / 100)) : 50;
+    const paper1Max = Number(subjectConfig?.paper_one_max_marks ?? 100);
+    const paper2Max = Number(subjectConfig?.paper_two_max_marks ?? (hasPractical ? 50 : 0));
+    const pageTitleMap: Record<typeof activeTab, string> = {
+        spreadsheet: 'Spreadsheet Entry',
+        manual: 'Manual Marks Entry',
+        import: 'Import Marks',
+        bulk: 'Bulk Update Marks',
+        verify: 'Marks Verification',
+        practical: 'Practical Entry',
+    };
+
+    const pageDescriptionMap: Record<typeof activeTab, string> = {
+        spreadsheet: 'Record mock scores, import sheets, or verify entered mark sheets.',
+        manual: 'Enter or update a single candidate mark record for the selected context.',
+        import: 'Upload the official locked Excel template and import marks safely.',
+        bulk: 'Apply adjustments or absent flags across all candidates in the selected subject.',
+        verify: 'Review, approve, and lock sheets for the selected context.',
+        practical: 'Capture practical marks for subjects that include practical components.',
+    };
 
     const focusSpreadsheetCell = (field: 'paper1' | 'paper2', rowIndex: number) => {
         const target = field === 'paper1' ? paper1Refs.current[rowIndex] : paper2Refs.current[rowIndex];
@@ -338,16 +587,12 @@ export default function MarksEntryPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">Marks Management</h1>
-                <p className="mt-1 text-sm text-gray-500">Record mock scores, import sheets, or verify entered mark sheets.</p>
+                <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">{pageTitleMap[activeTab]}</h1>
+                <p className="mt-1 text-sm text-gray-500">{pageDescriptionMap[activeTab]}</p>
             </div>
 
             {/* ─── GLOBAL CONTEXT FILTERS ──────────────────────────────────── */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                    <Sliders className="h-4 w-4 text-[#0F4C81]" />
-                    Context Hierarchy Filter (Region {'->'} District {'->'} School)
-                </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">1. Region</label>
@@ -418,19 +663,6 @@ export default function MarksEntryPage() {
                 </div>
             </div>
 
-            {/* Submenu tabs */}
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-5 py-3 text-sm font-semibold border-b-2 transition ${activeTab === tab.id ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 
                 {/* ─── SPREADSHEET ENTRY ───────────────────────────────────── */}
@@ -472,11 +704,12 @@ export default function MarksEntryPage() {
                                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${hasPractical ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
                                         {hasPractical ? '★ Theory + Practical' : '✔ Theory Only'}
                                     </span>
-                                    <span className="text-xs text-gray-500 font-bold">Max: {subjectConfig.max_marks} marks</span>
+                                    <span className="text-xs text-gray-500 font-bold">Paper 1 Max: {paper1Max}</span>
+                                    {hasPractical && <span className="text-xs text-gray-500 font-bold">Paper 2 Max: {paper2Max}</span>}
                                     <span className="text-xs text-gray-500 font-bold ml-auto">{candidates.length} candidates</span>
                                 </div>
 
-                                <div className="overflow-x-auto rounded-xl border">
+                                <div className="overflow-x-auto rounded-xl border scrollbar-hover">
                                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                                         <thead className="bg-gray-50 font-bold text-gray-700">
                                             <tr>
@@ -486,7 +719,7 @@ export default function MarksEntryPage() {
                                                 <th className="px-4 py-3 text-center">Paper 1 — Theory (/{paper1Max})</th>
                                                 {hasPractical && <th className="px-4 py-3 text-center text-amber-600">Paper 2 — Practical (/{paper2Max})</th>}
                                                 <th className="px-4 py-3 text-center">Absent</th>
-                                                <th className="px-4 py-3 text-center">Total</th>
+                                                <th className="px-4 py-3 text-center">Final Marks</th>
                                                 <th className="px-4 py-3 text-center">Grade</th>
                                             </tr>
                                         </thead>
@@ -496,7 +729,7 @@ export default function MarksEntryPage() {
                                                 const isAbsent = entry?.absent ?? false;
                                                 const p1 = !isAbsent && entry?.paper1 ? parseFloat(entry.paper1) : 0;
                                                 const p2 = !isAbsent && hasPractical && entry?.paper2 ? parseFloat(entry.paper2) : 0;
-                                                const total = p1 + p2;
+                                                const total = isAbsent ? 0 : calculateWeightedFinalScore(p1, p2, subjectConfig);
                                                 function handleCellChange(
                                                     examination_registration_id: string,
                                                     field: 'paper1' | 'paper2' | 'absent',
@@ -534,7 +767,7 @@ export default function MarksEntryPage() {
                                                                 ref={el => { paper1Refs.current[idx] = el; }}
                                                                 disabled={isAbsent}
                                                                 value={entry?.paper1 ?? ''}
-                                                                onChange={e => handleCellChange(c.examination_registration_id, 'paper1', e.target.value.replace(/[^\d]/g, ''))}
+                                                                onChange={e => handleCellChange(c.examination_registration_id, 'paper1', clampNumericInput(e.target.value, paper1Max))}
                                                                 onKeyDown={e => handleSpreadsheetKeyDown(e, idx, 'paper1')}
                                                                 type="text"
                                                                 inputMode="numeric"
@@ -550,7 +783,7 @@ export default function MarksEntryPage() {
                                                                     ref={el => { paper2Refs.current[idx] = el; }}
                                                                     disabled={isAbsent}
                                                                     value={entry?.paper2 ?? ''}
-                                                                    onChange={e => handleCellChange(c.examination_registration_id, 'paper2', e.target.value.replace(/[^\d]/g, ''))}
+                                                                    onChange={e => handleCellChange(c.examination_registration_id, 'paper2', clampNumericInput(e.target.value, paper2Max))}
                                                                     onKeyDown={e => handleSpreadsheetKeyDown(e, idx, 'paper2')}
                                                                     type="text"
                                                                     inputMode="numeric"
@@ -570,7 +803,7 @@ export default function MarksEntryPage() {
                                                             />
                                                         </td>
                                                         <td className="px-4 py-3 text-center text-[#0F4C81] font-bold">
-                                                            {isAbsent ? <span className="text-rose-500 font-normal text-xs">Absent</span> : total}
+                                                            {isAbsent ? <span className="text-rose-500 font-normal text-xs">Absent</span> : total.toFixed(2)}
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             {c.grade ? <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">{c.grade}</span> : '—'}
@@ -620,22 +853,168 @@ export default function MarksEntryPage() {
 
                 {/* ─── IMPORT ──────────────────────────────────────────────────── */}
                 {activeTab === 'import' && (
-                    <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-gray-900">Import Marks from Spreadsheet</h3>
-                        <p className="text-xs text-gray-500 font-semibold">Upload a pre-formatted Excel template to batch import marks for the selected context.</p>
-                        <div className="border border-dashed rounded-2xl p-12 text-center text-gray-400 hover:border-[#0F4C81] transition cursor-pointer">
-                            <FileSpreadsheet className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                            <p className="font-bold text-gray-600 text-sm">Drop .xlsx template here or click to browse</p>
-                            <p className="text-xs mt-1">Download a blank template first to ensure correct formatting</p>
+                    <div className="space-y-5">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Import Marks from Spreadsheet</h3>
+                            <p className="text-xs text-gray-500 font-semibold mt-1">
+                                Upload the official locked Excel template for this exam context. The server will reject any workbook whose structure, hidden IDs, or roster signature has been modified.
+                            </p>
                         </div>
-                        <div className="flex gap-3">
-                            <button className="rounded-xl border border-[#0F4C81] text-[#0F4C81] px-4 py-2.5 text-xs font-bold hover:bg-blue-50 transition">
-                                Download Blank Template
-                            </button>
-                            <button className="rounded-xl bg-[#0F4C81] text-white px-4 py-2.5 text-xs font-bold hover:bg-[#0a3a66] transition">
-                                Upload & Import
-                            </button>
+
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900 space-y-1.5">
+                            <p className="font-bold">Security rules</p>
+                            <p>1. Do not add, remove, rename, or reorder rows or columns.</p>
+                            <p>2. Paper 1 must stay within 0-100 and Paper 2 within 0-50.</p>
+                            <p>3. Marks cells are the only unlocked cells in the template.</p>
                         </div>
+
+                        {importMessage && (
+                            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs font-bold text-blue-700">
+                                {importMessage}
+                            </div>
+                        )}
+
+                        <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                            <div
+                                className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center transition hover:border-[#0F4C81]"
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={(event) => {
+                                    event.preventDefault();
+                                    handleImportFileSelect(event.dataTransfer.files?.[0] ?? null);
+                                }}
+                                onClick={() => importFileRef.current?.click()}
+                            >
+                                <FileSpreadsheet className="mx-auto mb-3 h-10 w-10 text-[#0F4C81]" />
+                                <p className="font-bold text-gray-800 text-sm">Drop the locked `.xlsx` file here or browse</p>
+                                <p className="mt-1 text-xs text-gray-500">Only the official template downloaded from this page should be used.</p>
+                                <input
+                                    ref={importFileRef}
+                                    type="file"
+                                    accept=".xlsx"
+                                    className="hidden"
+                                    onChange={(event) => handleImportFileSelect(event.target.files?.[0] ?? null)}
+                                />
+                                <div className="mt-4 flex flex-col items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            importFileRef.current?.click();
+                                        }}
+                                        className="rounded-xl border border-[#0F4C81] px-4 py-2.5 text-xs font-bold text-[#0F4C81] transition hover:bg-blue-50"
+                                    >
+                                        Choose Excel File
+                                    </button>
+                                    {importFile && (
+                                        <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                                            Selected: {importFile.name}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Current context</p>
+                                <div className="mt-3 space-y-2 text-xs font-semibold text-slate-600">
+                                    {[
+                                        { label: 'School', ok: !!selectedSchool },
+                                        { label: 'Exam', ok: !!selectedExam },
+                                        { label: 'Subject', ok: !!selectedSubject },
+                                        { label: 'Class level', ok: !!selectedClass },
+                                        { label: 'Practical', ok: subjectConfig?.has_practical ?? false, yesNo: true },
+                                    ].map((item) => (
+                                        <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200">
+                                            <span>{item.label}</span>
+                                            <span
+                                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${
+                                                    item.ok
+                                                        ? item.yesNo
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : 'bg-emerald-100 text-emerald-700'
+                                                        : item.yesNo
+                                                            ? 'bg-slate-100 text-slate-600'
+                                                            : 'bg-rose-100 text-rose-700'
+                                                }`}
+                                            >
+                                                {item.yesNo ? (item.ok ? 'Yes' : 'No') : (item.ok ? 'Selected' : 'Missing')}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-4 flex flex-col gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadImportTemplate}
+                                        disabled={downloadingTemplate}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#0F4C81] px-4 py-2.5 text-xs font-bold text-[#0F4C81] transition hover:bg-blue-50 disabled:opacity-50"
+                                    >
+                                        {downloadingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                        Download Official Template
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={previewLoaded ? handleConfirmImport : handlePreviewImport}
+                                        disabled={previewingFile || importingFile || !importFile}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F4C81] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0a3a66] disabled:opacity-50"
+                                    >
+                                        {previewingFile || importingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                        {previewLoaded ? 'Confirm & Import' : 'Preview Import'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {previewLoaded && importPreviewRows.length > 0 && (
+                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900">Preview of Marks to Import</h4>
+                                        <p className="text-xs text-slate-500 font-semibold">
+                                            Review the rows below before final import. This is the data the server will save.
+                                        </p>
+                                    </div>
+                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                                        {importPreviewRows.length} rows
+                                    </span>
+                                </div>
+                                <div className="overflow-x-auto rounded-xl border">
+                                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                                        <thead className="bg-slate-50 font-bold text-slate-600">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left">#</th>
+                                                <th className="px-4 py-3 text-left">Index No.</th>
+                                                <th className="px-4 py-3 text-left">Candidate Name</th>
+                                                <th className="px-4 py-3 text-center">Paper 1</th>
+                                                {subjectConfig?.has_practical && <th className="px-4 py-3 text-center">Paper 2</th>}
+                                                <th className="px-4 py-3 text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                                            {importPreviewRows.map((row, idx) => (
+                                                <tr key={row.examination_registration_id ?? idx}>
+                                                    <td className="px-4 py-3">{idx + 1}</td>
+                                                    <td className="px-4 py-3 font-mono">{row.exam_number}</td>
+                                                    <td className="px-4 py-3">{row.student_name}</td>
+                                                    <td className="px-4 py-3 text-center">{row.paper_one_score ?? '—'}</td>
+                                                    {subjectConfig?.has_practical && (
+                                                        <td className="px-4 py-3 text-center">{row.paper_two_score ?? '—'}</td>
+                                                    )}
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${
+                                                            row.registration_status === 'absent'
+                                                                ? 'bg-rose-100 text-rose-700'
+                                                                : 'bg-emerald-100 text-emerald-700'
+                                                        }`}>
+                                                            {row.registration_status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -721,6 +1100,9 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
     const [lookingUp, setLookingUp] = useState(false);
 
     const localSubject = examSubjects.find((s: any) => s.subject_id === selectedSubject) ?? null;
+    const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
+    const paper1Max = Number(subjectConfig?.paper_one_max_marks ?? 100);
+    const paper2Max = Number(subjectConfig?.paper_two_max_marks ?? (hasPractical ? 50 : 0));
 
     // Load subject configuration
     useEffect(() => {
@@ -735,7 +1117,7 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
     // Load registered candidates list for the dropdown
     useEffect(() => {
         if (selectedExam && selectedSchool && selectedClass) {
-            fetch(`/api/v1/examinations/${selectedExam}/candidates?school_id=${selectedSchool}&class_level_id=${selectedClass}`, { headers })
+            fetch(`/api/v1/examinations/${selectedExam}/candidates?school_id=${selectedSchool}&class_level_id=${selectedClass}&subject_id=${selectedSubject}`, { headers })
                 .then(res => res.json())
                 .then(data => {
                     setStudents(data || []);
@@ -746,9 +1128,7 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
             setStudents([]);
             setSelectedStudentReg('');
         }
-    }, [selectedExam, selectedSchool, selectedClass]);
-
-    const hasPractical = subjectConfig?.has_practical ?? localSubject?.has_practical ?? false;
+    }, [selectedExam, selectedSchool, selectedClass, selectedSubject]);
 
     const handleSubmit = async () => {
         if (!subjectConfig) { setError('This subject has not been configured for the selected examination yet.'); return; }
@@ -826,13 +1206,15 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Paper 1 — Theory Score</label>
-                        <input 
-                            disabled={absent} 
-                            value={paper1} 
-                            onChange={e => setPaper1(e.target.value)} 
-                            type="number" 
-                            className="block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-bold outline-none disabled:bg-gray-100" 
-                        />
+                            <input 
+                                disabled={absent} 
+                                value={paper1} 
+                                onChange={e => setPaper1(clampNumericInput(e.target.value, paper1Max))} 
+                                type="number" 
+                                min="0"
+                                max={paper1Max}
+                                className="block w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-bold outline-none disabled:bg-gray-100" 
+                            />
                     </div>
                     {hasPractical && (
                         <div>
@@ -840,8 +1222,10 @@ function ManualEntryTab({ selectedExam, selectedSchool, selectedSubject, selecte
                             <input 
                                 disabled={absent} 
                                 value={paper2} 
-                                onChange={e => setPaper2(e.target.value)} 
+                                onChange={e => setPaper2(clampNumericInput(e.target.value, paper2Max))} 
                                 type="number" 
+                                min="0"
+                                max={paper2Max}
                                 className="block w-full rounded-xl border border-amber-300 px-3 py-2.5 text-sm font-bold outline-none disabled:bg-gray-100" 
                             />
                         </div>
@@ -881,6 +1265,7 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
     const [error, setError] = useState('');
 
     const localSubject = examSubjects.find((s: any) => s.subject_id === selectedSubject) ?? null;
+    const paperTwoMax = Number(subjectConfig?.paper_two_max_marks ?? 50);
 
     const handleLoad = async () => {
         if (!selectedExam || !selectedSubject || !selectedClass || !selectedSchool) {
@@ -949,14 +1334,14 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
             
             {!loading && candidates.length > 0 && (
                 <div className="space-y-4">
-                    <div className="overflow-x-auto rounded-xl border">
+                    <div className="overflow-x-auto rounded-xl border scrollbar-hover">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-amber-50 font-bold text-gray-600">
                                 <tr>
-                                    <th className="px-6 py-3 text-left">#</th>
-                                    <th className="px-6 py-3 text-left">Index Number</th>
-                                    <th className="px-6 py-3 text-left">Candidate Name</th>
-                                    <th className="px-6 py-3 text-center">{localSubject?.name ?? 'Subject'} — Practical Score (/50)</th>
+                            <th className="px-6 py-3 text-left">#</th>
+                            <th className="px-6 py-3 text-left">Index Number</th>
+                            <th className="px-6 py-3 text-left">Candidate Name</th>
+                            <th className="px-6 py-3 text-center">{localSubject?.name ?? 'Subject'} — Practical Score (/{paperTwoMax})</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 font-semibold text-gray-800">
@@ -968,8 +1353,9 @@ function PracticalEntryTab({ selectedExam, selectedSchool, selectedSubject, sele
                                         <td className="px-6 py-3 text-center">
                                             <input
                                                 value={marksData[c.examination_registration_id] || ''}
-                                                onChange={e => setMarksData(prev => ({ ...prev, [c.examination_registration_id]: e.target.value }))}
-                                                type="number" min="0" max="50"
+                                                onChange={e => setMarksData(prev => ({ ...prev, [c.examination_registration_id]: clampNumericInput(e.target.value, paperTwoMax) }))}
+                                                type="number" min="0"
+                                                max={paperTwoMax}
                                                 className="w-24 rounded border border-amber-300 px-2 py-1 text-sm text-center focus:border-amber-500 focus:outline-none"
                                             />
                                         </td>

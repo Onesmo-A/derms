@@ -9,6 +9,8 @@ use App\Domains\Results\Models\SchoolExamSummary;
 use App\Domains\Results\Models\StudentExamSummary;
 use App\Domains\Results\Models\SubjectExamSummary;
 use App\Domains\School\Models\School;
+use App\Domains\Student\Models\StudentSubject;
+use App\Domains\Student\Services\StudentSubjectService;
 use App\Enums\ExaminationRegistrationStatus;
 use App\Repositories\Results\ResultsRepositoryInterface;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +58,13 @@ class ResultsProcessingService
 
             $candidates = $this->resultsRepository->getCandidates($examinationId, $classLevelId);
             $examSubjects = $this->resultsRepository->getExamSubjects($examinationId, $classLevelId);
-            $examSubjectIds = $examSubjects->pluck('id');
+            $candidateSubjectMap = StudentSubject::whereIn('student_id', $candidates->pluck('student_id'))
+                ->where('academic_year_id', $exam->academic_year_id)
+                ->where('class_level_id', $classLevelId)
+                ->where('status', 'registered')
+                ->get()
+                ->groupBy('student_id')
+                ->map(fn ($rows) => $rows->pluck('subject_id')->values());
 
             if ($candidates->isEmpty()) {
                 throw new \Exception('No candidates were found for this examination class level.');
@@ -79,9 +87,23 @@ class ResultsProcessingService
                     continue;
                 }
 
-                $marks = $this->resultsRepository->getCandidateMarks($candidate->id, $examSubjectIds);
+                $candidateSubjectIds = $candidateSubjectMap->get($candidate->student_id, collect());
 
-                if ($marks->count() !== $examSubjects->count()) {
+                $candidateExamSubjectIds = $examSubjects
+                    ->whereIn('subject_id', $candidateSubjectIds)
+                    ->pluck('id');
+
+                if ($candidateSubjectIds->count() < StudentSubjectService::MIN_SUBJECTS || $candidateSubjectIds->count() > StudentSubjectService::MAX_SUBJECTS) {
+                    throw new \Exception("Incomplete subject registration found for registration {$candidate->exam_number}. Please complete subject registration before processing.");
+                }
+
+                if ($candidateExamSubjectIds->count() !== $candidateSubjectIds->count()) {
+                    throw new \Exception("Subject registration mismatch found for registration {$candidate->exam_number}. Please complete subject setup before processing.");
+                }
+
+                $marks = $this->resultsRepository->getCandidateMarks($candidate->id, $candidateExamSubjectIds);
+
+                if ($marks->count() !== $candidateExamSubjectIds->count()) {
                     throw new \Exception("Incomplete marks found for registration {$candidate->exam_number}. Please finish marks entry before processing.");
                 }
             }
@@ -102,7 +124,17 @@ class ResultsProcessingService
                     continue;
                 }
 
-                $marks = $this->resultsRepository->getCandidateMarks($candidate->id, $examSubjectIds);
+                $candidateSubjectIds = $candidateSubjectMap->get($candidate->student_id, collect());
+
+                if ($candidateSubjectIds->count() < StudentSubjectService::MIN_SUBJECTS || $candidateSubjectIds->count() > StudentSubjectService::MAX_SUBJECTS) {
+                    throw new \Exception("Incomplete subject registration found for registration {$candidate->exam_number}. Please complete subject registration before processing.");
+                }
+
+                $candidateExamSubjectIds = $examSubjects
+                    ->whereIn('subject_id', $candidateSubjectIds)
+                    ->pluck('id');
+
+                $marks = $this->resultsRepository->getCandidateMarks($candidate->id, $candidateExamSubjectIds);
 
                 $totalMarks = 0;
                 $passedCount = 0;
@@ -172,6 +204,20 @@ class ResultsProcessingService
 
             foreach ($activeSummaries as $index => $summary) {
                 StudentExamSummary::find($summary->id)?->update(['district_position' => $index + 1]);
+            }
+
+            foreach ($activeSummaries->groupBy('region_id') as $regionSummaries) {
+                $regionRankedSummaries = $regionSummaries
+                    ->sortBy([
+                        ['gpa', 'asc'],
+                        ['division_points', 'asc'],
+                        ['average_marks', 'desc'],
+                    ])
+                    ->values();
+
+                foreach ($regionRankedSummaries as $index => $summary) {
+                    StudentExamSummary::find($summary->id)?->update(['region_position' => $index + 1]);
+                }
             }
 
             foreach ($summaries->groupBy('school_id') as $schoolSummaries) {

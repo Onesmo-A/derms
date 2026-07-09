@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -11,8 +12,10 @@ class RoleController extends Controller
     /**
      * Return all roles with their permission mappings.
      */
-    public function index()
+    public function index(Request $request)
     {
+        abort_unless($request->user()?->can('manage_roles'), 403);
+
         $roles = Role::with('permissions')
             ->orderBy('name')
             ->get()
@@ -28,8 +31,10 @@ class RoleController extends Controller
     /**
      * Return all available permissions, grouped by category.
      */
-    public function permissions()
+    public function permissions(Request $request)
     {
+        abort_unless($request->user()?->can('manage_permissions'), 403);
+
         $permissions = Permission::orderBy('name')->get()->pluck('name');
 
         // Group by prefix
@@ -63,8 +68,10 @@ class RoleController extends Controller
     /**
      * Return the permission-to-role mapping summary for display in the console.
      */
-    public function hierarchy()
+    public function hierarchy(Request $request)
     {
+        abort_unless($request->user()?->can('manage_roles'), 403);
+
         $hierarchy = [
             'Super Administrator' => [
                 'scope'       => 'Entire System',

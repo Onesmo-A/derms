@@ -9,6 +9,8 @@ interface User {
     permissions: string[];
     school_id?: string;
     district_id?: string;
+    region_id?: string;
+    status?: string;
 }
 
 interface AuthState {

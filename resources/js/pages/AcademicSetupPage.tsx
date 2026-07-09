@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const OVERLAY = 'fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-50';
 const MODAL_BOX = 'bg-white rounded-xl p-6 w-full max-w-md shadow-2xl';
 
 export default function AcademicSetupPage() {
+    const { pathname } = useLocation();
     // ── State ──────────────────────────────────────────────────────────────────
     const [academicYears, setAcademicYears] = useState<any[]>([]);
     const [classLevels, setClassLevels] = useState<any[]>([]);
@@ -20,11 +22,20 @@ export default function AcademicSetupPage() {
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [showGradingModal, setShowGradingModal] = useState(false);
     const [showRuleModal, setShowRuleModal] = useState(false);
+    const [editingSubject, setEditingSubject] = useState<any | null>(null);
 
     // Forms
     const [yearForm, setYearForm] = useState({ name: '', start_date: '', end_date: '', is_active: false });
     const [classForm, setClassForm] = useState({ name: '', numeric_level: '' });
-    const [subjectForm, setSubjectForm] = useState({ name: '', short_name: '', code: '', has_practical: false, class_level_id: '' });
+    const [subjectForm, setSubjectForm] = useState({
+        name: '',
+        short_name: '',
+        code: '',
+        description: '',
+        has_practical: false,
+        class_level_id: '',
+        is_active: true,
+    });
     const [gradingForm, setGradingForm] = useState({ label: '', min_percent: '', max_percent: '', points: '' });
     const [ruleForm, setRuleForm] = useState({ name: '', min_points: '', max_points: '', badge: '' });
 
@@ -53,6 +64,20 @@ export default function AcademicSetupPage() {
         }).catch(console.error).finally(() => setLoading(false));
     };
 
+    useEffect(() => {
+        if (pathname.includes('/class-levels')) {
+            setActiveTab('classes');
+        } else if (pathname.includes('/subjects')) {
+            setActiveTab('subjects');
+        } else if (pathname.includes('/grading-systems')) {
+            setActiveTab('grading');
+        } else if (pathname.includes('/division-rules')) {
+            setActiveTab('rules');
+        } else {
+            setActiveTab('years');
+        }
+    }, [pathname]);
+
     useEffect(() => { fetchData(); }, [activeTab]);
 
     // ── CRUD handlers ──────────────────────────────────────────────────────────
@@ -76,12 +101,72 @@ export default function AcademicSetupPage() {
         } catch (e) { console.error(e); }
     };
 
-    const handleAddSubject = async () => {
+    const resetSubjectForm = () => {
+        setEditingSubject(null);
+        setSubjectForm({
+            name: '',
+            short_name: '',
+            code: '',
+            description: '',
+            has_practical: false,
+            class_level_id: '',
+            is_active: true,
+        });
+    };
+
+    const openSubjectModal = (subject: any | null = null) => {
+        if (subject) {
+            setEditingSubject(subject);
+            setSubjectForm({
+                name: subject.name || '',
+                short_name: subject.short_name || '',
+                code: subject.code || '',
+                description: subject.description || '',
+                has_practical: Boolean(subject.has_practical),
+                class_level_id: subject.class_level_id || '',
+                is_active: subject.is_active !== false,
+            });
+        } else {
+            resetSubjectForm();
+        }
+        setShowSubjectModal(true);
+    };
+
+    const closeSubjectModal = () => {
+        setShowSubjectModal(false);
+        resetSubjectForm();
+    };
+
+    const handleSaveSubject = async () => {
         try {
-            const res = await fetch('/api/v1/subjects', { method: 'POST', headers, body: JSON.stringify(subjectForm) });
+            const payload = {
+                ...subjectForm,
+                short_name: subjectForm.short_name || null,
+                description: subjectForm.description || null,
+                class_level_id: subjectForm.class_level_id || null,
+            };
+
+            const url = editingSubject ? `/api/v1/subjects/${editingSubject.id}` : '/api/v1/subjects';
+            const res = await fetch(url, {
+                method: editingSubject ? 'PUT' : 'POST',
+                headers,
+                body: JSON.stringify(payload),
+            });
+
             if (!res.ok) throw new Error('Failed');
-            setShowSubjectModal(false);
-            setSubjectForm({ name: '', short_name: '', code: '', has_practical: false, class_level_id: '' });
+            closeSubjectModal();
+            fetchData();
+        } catch (e) { console.error(e); }
+    };
+
+    const handleDeleteSubject = async (subject: any) => {
+        if (!window.confirm(`Delete subject "${subject.name}"?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/v1/subjects/${subject.id}`, { method: 'DELETE', headers });
+            if (!res.ok && res.status !== 204) throw new Error('Failed');
             fetchData();
         } catch (e) { console.error(e); }
     };
@@ -129,6 +214,9 @@ export default function AcademicSetupPage() {
         { id: 'rules', label: 'Division Rules' },
     ];
 
+    const subjectGradingSystems = gradingSystems.filter(g => g.type === 'subject');
+    const divisionGradingSystems = gradingSystems.filter(g => g.type === 'division');
+
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-6">
@@ -138,23 +226,6 @@ export default function AcademicSetupPage() {
                     <h1 className="text-3xl font-extrabold tracking-tight text-[#0F4C81]">Academic Setup</h1>
                     <p className="mt-1 text-sm text-gray-500">Configure academic years, class levels, curriculum subjects, and grading definitions.</p>
                 </div>
-            </div>
-
-            {/* Tab bar */}
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
-                            activeTab === tab.id
-                                ? 'border-[#0F4C81] text-[#0F4C81]'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
             </div>
 
             {/* Content */}
@@ -177,7 +248,7 @@ export default function AcademicSetupPage() {
                                     New Year
                                 </button>
                             </div>
-                            <div className="overflow-x-auto w-full">
+                            <div className="overflow-x-auto w-full scrollbar-hover">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
@@ -241,19 +312,22 @@ export default function AcademicSetupPage() {
                                 <h3 className="text-lg font-bold text-gray-900">Curriculum Subjects</h3>
                                 <button
                                     className="rounded-lg bg-[#0F4C81] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0c3c66]"
-                                    onClick={() => setShowSubjectModal(true)}
+                                    onClick={() => openSubjectModal()}
                                 >
                                     Add Subject
                                 </button>
                             </div>
-                            <div className="overflow-x-auto w-full">
+                            <div className="overflow-x-auto w-full scrollbar-hover">
                             <table className="w-full border-collapse text-left text-sm text-gray-500">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                                     <tr>
                                         <th className="px-6 py-3 font-semibold">Subject Name</th>
                                         <th className="px-6 py-3 font-semibold">Short Name</th>
                                         <th className="px-6 py-3 font-semibold">Code</th>
-                                        <th className="px-6 py-3 font-semibold">Practical Component</th>
+                                        <th className="px-6 py-3 font-semibold">Class Level</th>
+                                        <th className="px-6 py-3 font-semibold">Practical</th>
+                                        <th className="px-6 py-3 font-semibold">Status</th>
+                                        <th className="px-6 py-3 font-semibold">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200">
@@ -262,11 +336,35 @@ export default function AcademicSetupPage() {
                                             <td className="px-6 py-4 font-medium text-gray-900">{s.name}</td>
                                             <td className="px-6 py-4 font-mono text-xs">{s.short_name || s.code}</td>
                                             <td className="px-6 py-4 font-mono">{s.code}</td>
-                                            <td className="px-6 py-4">{s.has_practical ? 'Yes (Theory + Practical)' : 'No (Theory Only)'}</td>
+                                            <td className="px-6 py-4">{s.class_level?.name || 'All Levels'}</td>
+                                            <td className="px-6 py-4">{s.has_practical ? 'Yes' : 'No'}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {s.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-[#0F4C81] hover:text-[#0F4C81]"
+                                                        onClick={() => openSubjectModal(s)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-md border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                                                        onClick={() => handleDeleteSubject(s)}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                     {subjects.length === 0 && (
-                                        <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-400">No subjects yet.</td></tr>
+                                        <tr><td colSpan={7} className="px-6 py-4 text-center text-gray-400">No subjects yet.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -286,7 +384,104 @@ export default function AcademicSetupPage() {
                                     Add Grading System
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 gap-2">
+                            <div className="space-y-6">
+                                <section className="space-y-3">
+                                    <div>
+                                        <h4 className="text-sm font-bold uppercase tracking-wide text-gray-700">Marks Grading</h4>
+                                        <p className="text-xs text-gray-500">Subject grade boundaries used when assigning A-F marks.</p>
+                                    </div>
+                                    {subjectGradingSystems.length > 0 ? subjectGradingSystems.map(system => (
+                                        <div key={system.id} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <div className="font-semibold text-gray-900">{system.name}</div>
+                                                    <div className="text-xs text-gray-500">Type: {system.type}</div>
+                                                </div>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full border-collapse text-left text-sm text-gray-600">
+                                                    <thead className="bg-white text-xs uppercase text-gray-700">
+                                                        <tr>
+                                                            <th className="px-4 py-3 font-semibold">Grade</th>
+                                                            <th className="px-4 py-3 font-semibold">Score Range</th>
+                                                            <th className="px-4 py-3 font-semibold">Points</th>
+                                                            <th className="px-4 py-3 font-semibold">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-200">
+                                                        {(system.details ?? []).length > 0 ? system.details.map((g: any) => (
+                                                            <tr key={g.id} className="hover:bg-white">
+                                                                <td className="px-4 py-3 font-semibold text-gray-900">{g.grade}</td>
+                                                                <td className="px-4 py-3">({g.min_score}% - {g.max_score}%)</td>
+                                                                <td className="px-4 py-3">Points: {g.points}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <button className="text-sm text-red-500 hover:text-red-700" onClick={() => handleDeleteGrading(g.id)}>
+                                                                        Delete
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        )) : (
+                                                            <tr>
+                                                                <td colSpan={4} className="px-4 py-4 text-center text-gray-400">No subject grading rows yet.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-gray-400">No marks grading systems yet.</p>
+                                    )}
+                                </section>
+
+                                <section className="hidden">
+                                    <div>
+                                        <h4 className="text-sm font-bold uppercase tracking-wide text-gray-700">Division Grading</h4>
+                                        <p className="text-xs text-gray-500">Division brackets used to assign I, II, III, IV and 0.</p>
+                                    </div>
+                                    {divisionGradingSystems.length > 0 ? divisionGradingSystems.map(system => (
+                                        <div key={system.id} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <div className="font-semibold text-gray-900">{system.name}</div>
+                                                    <div className="text-xs text-gray-500">Type: {system.type}</div>
+                                                </div>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full border-collapse text-left text-sm text-gray-600">
+                                                    <thead className="bg-white text-xs uppercase text-gray-700">
+                                                        <tr>
+                                                            <th className="px-4 py-3 font-semibold">Division</th>
+                                                            <th className="px-4 py-3 font-semibold">Points Range</th>
+                                                            <th className="px-4 py-3 font-semibold">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-200">
+                                                        {(system.details ?? []).length > 0 ? system.details.map((g: any) => (
+                                                            <tr key={g.id} className="hover:bg-white">
+                                                                <td className="px-4 py-3 font-semibold text-gray-900">{g.grade}</td>
+                                                                <td className="px-4 py-3">({g.min_points} - {g.max_points} points)</td>
+                                                                <td className="px-4 py-3">
+                                                                    <button className="text-sm text-red-500 hover:text-red-700" onClick={() => handleDeleteGrading(g.id)}>
+                                                                        Delete
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        )) : (
+                                                            <tr>
+                                                                <td colSpan={3} className="px-4 py-4 text-center text-gray-400">No division grading rows yet.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-gray-400">No division grading systems yet.</p>
+                                    )}
+                                </section>
+                            </div>
+                            <div className="hidden">
                                 {gradingSystems.map(g => (
                                     <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
                                         <div>
@@ -318,6 +513,52 @@ export default function AcademicSetupPage() {
                                     Add Division Rule
                                 </button>
                             </div>
+                            <section className="space-y-3">
+                                <div>
+                                    <h4 className="text-sm font-bold uppercase tracking-wide text-gray-700">Division Grading</h4>
+                                    <p className="text-xs text-gray-500">Division brackets used to assign I, II, III, IV and 0.</p>
+                                </div>
+                                {divisionGradingSystems.length > 0 ? divisionGradingSystems.map(system => (
+                                    <div key={system.id} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <div className="font-semibold text-gray-900">{system.name}</div>
+                                                <div className="text-xs text-gray-500">Type: {system.type}</div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full border-collapse text-left text-sm text-gray-600">
+                                                <thead className="bg-white text-xs uppercase text-gray-700">
+                                                    <tr>
+                                                        <th className="px-4 py-3 font-semibold">Division</th>
+                                                        <th className="px-4 py-3 font-semibold">Points Range</th>
+                                                        <th className="px-4 py-3 font-semibold">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {(system.details ?? []).length > 0 ? system.details.map((g: any) => (
+                                                        <tr key={g.id} className="hover:bg-white">
+                                                            <td className="px-4 py-3 font-semibold text-gray-900">{g.grade}</td>
+                                                            <td className="px-4 py-3">({g.min_points} - {g.max_points} points)</td>
+                                                            <td className="px-4 py-3">
+                                                                <button className="text-sm text-red-500 hover:text-red-700" onClick={() => handleDeleteGrading(g.id)}>
+                                                                    Delete
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr>
+                                                            <td colSpan={3} className="px-4 py-4 text-center text-gray-400">No division grading rows yet.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <p className="text-sm text-gray-400">No division grading systems yet.</p>
+                                )}
+                            </section>
                             <div className="grid grid-cols-1 gap-2">
                                 {divisionRules.map(r => (
                                     <div key={r.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -384,18 +625,29 @@ export default function AcademicSetupPage() {
                 </div>
             )}
 
-            {/* Add Subject */}
+            {/* Add / Edit Subject */}
             {showSubjectModal && (
                 <div className={OVERLAY}>
                     <div className={MODAL_BOX}>
-                        <h2 className="text-xl font-bold mb-4 text-gray-900">Add Subject</h2>
+                        <h2 className="text-xl font-bold mb-4 text-gray-900">{editingSubject ? 'Edit Subject' : 'Add Subject'}</h2>
                         <div className="space-y-3">
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Subject Name" value={subjectForm.name} onChange={e => setSubjectForm({ ...subjectForm, name: e.target.value })} />
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Short Name (e.g. CIV)" value={subjectForm.short_name} onChange={e => setSubjectForm({ ...subjectForm, short_name: e.target.value })} />
                             <input className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4C81]" placeholder="Code (e.g. MATH)" value={subjectForm.code} onChange={e => setSubjectForm({ ...subjectForm, code: e.target.value })} />
+                            <textarea
+                                className="w-full rounded-lg border border-gray-200 p-2 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]"
+                                rows={3}
+                                placeholder="Description"
+                                value={subjectForm.description}
+                                onChange={e => setSubjectForm({ ...subjectForm, description: e.target.value })}
+                            />
                             <label className="flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" checked={subjectForm.has_practical} onChange={e => setSubjectForm({ ...subjectForm, has_practical: e.target.checked })} />
                                 Has Practical Component
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" checked={subjectForm.is_active} onChange={e => setSubjectForm({ ...subjectForm, is_active: e.target.checked })} />
+                                Active subject
                             </label>
                             <SearchableSelect
                                 value={subjectForm.class_level_id}
@@ -407,8 +659,10 @@ export default function AcademicSetupPage() {
                             />
                         </div>
                         <div className="mt-5 flex justify-end gap-2">
-                            <button className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm" onClick={() => setShowSubjectModal(false)}>Cancel</button>
-                            <button className="px-4 py-2 rounded-lg bg-[#0F4C81] text-white text-sm hover:bg-[#0c3c66]" onClick={handleAddSubject}>Save</button>
+                            <button className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm" onClick={closeSubjectModal}>Cancel</button>
+                            <button className="px-4 py-2 rounded-lg bg-[#0F4C81] text-white text-sm hover:bg-[#0c3c66]" onClick={handleSaveSubject}>
+                                {editingSubject ? 'Update' : 'Save'}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -156,17 +156,19 @@ export default function RegionsPage() {
             {/* Stats */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {[
-                    { label: 'Total Regions', value: regions.length, color: 'text-[#0F4C81]', icon: MapPin, bg: 'bg-blue-50' },
-                    { label: 'Total Districts', value: totalDistricts, color: 'text-emerald-700', icon: Building2, bg: 'bg-emerald-50' },
-                    { label: 'Total Schools', value: totalSchools, color: 'text-amber-700', icon: School, bg: 'bg-amber-50' },
+                    { label: 'Total Regions', value: regions.length, textStyle: 'text-[#0F4C81]', icon: MapPin, bgTint: 'bg-[#0F4C81]/10' },
+                    { label: 'Total Districts', value: totalDistricts, textStyle: 'text-emerald-700', icon: Building2, bgTint: 'bg-emerald-500/10' },
+                    { label: 'Total Schools', value: totalSchools, textStyle: 'text-amber-700', icon: School, bgTint: 'bg-amber-500/10' },
                 ].map(stat => (
-                    <div key={stat.label} className={`rounded-2xl border ${stat.bg} p-6 flex items-center gap-4`}>
-                        <div className={`rounded-xl bg-white p-3 shadow-sm`}>
-                            <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{stat.label}</p>
-                            <p className={`mt-0.5 text-3xl font-extrabold ${stat.color}`}>{stat.value}</p>
+                    <div key={stat.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                        <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{stat.label}</p>
+                                <p className="mt-2 text-3xl font-black text-slate-900">{stat.value}</p>
+                            </div>
+                            <div className={`rounded-xl ${stat.bgTint} p-3 flex-shrink-0`}>
+                                <stat.icon className={`h-6 w-6 ${stat.textStyle}`} />
+                            </div>
                         </div>
                     </div>
                 ))}

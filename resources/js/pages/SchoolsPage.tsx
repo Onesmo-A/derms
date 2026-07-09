@@ -4,7 +4,7 @@ import { useToastFeedback } from '@/hooks/use-toast-feedback';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     School, Plus, Pencil, Trash2, Search, RefreshCw, X, Check,
-    BarChart3, ChartColumn, MapPin, Layers3
+    BarChart3, ChartColumn, MapPin, Layers3, AlertTriangle, Users
 } from 'lucide-react';
 
 interface Region { id: string; name: string; code: string; }
@@ -124,11 +124,17 @@ export default function SchoolsPage() {
         Authorization: `Bearer ${token}`,
     };
 
-    // Sync tab from URL
+    // Sync section from URL and auto-open the register modal on the dedicated route.
     useEffect(() => {
         const path = location.pathname;
         const tab = TABS.find(t => t.path === path);
+        const isRegisterRoute = path === '/schools/register';
+
         setActiveTab(tab?.id ?? 'schools');
+        setShowModal(isRegisterRoute);
+        if (!isRegisterRoute) {
+            setEditId(null);
+        }
     }, [location.pathname]);
 
     // Filter districts by selected region in filter bar
@@ -186,6 +192,7 @@ export default function SchoolsPage() {
         setForm(emptyForm);
         setFormErrors({});
         setError('');
+        navigate('/schools/register');
         setShowModal(true);
     };
 
@@ -212,6 +219,9 @@ export default function SchoolsPage() {
         setForm(emptyForm);
         setFormErrors({});
         setError('');
+        if (location.pathname === '/schools/register') {
+            navigate('/schools');
+        }
     };
 
     const validate = (): boolean => {
@@ -296,19 +306,6 @@ export default function SchoolsPage() {
                 )}
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap">
-                {TABS.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { setActiveTab(tab.id); navigate(tab.path); }}
-                        className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition ${activeTab === tab.id ? 'border-[#0F4C81] text-[#0F4C81]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
             {/* Alerts */}
             {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center gap-2">
@@ -327,14 +324,21 @@ export default function SchoolsPage() {
                     {/* Stats */}
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                         {[
-                            { label: 'Total Schools', value: schools.length, color: 'text-[#0F4C81]', bg: 'bg-blue-50' },
-                            { label: 'Below 40', value: below40Schools, color: 'text-amber-700', bg: 'bg-amber-50' },
-                            { label: '40 and Above', value: above40Schools, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-                            { label: 'Avg Students', value: averageStudents, color: 'text-purple-700', bg: 'bg-purple-50' },
+                            { label: 'Total Schools', value: schools.length, textStyle: 'text-[#0F4C81]', icon: School, bgTint: 'bg-[#0F4C81]/10' },
+                            { label: 'Below 40', value: below40Schools, textStyle: 'text-amber-700', icon: AlertTriangle, bgTint: 'bg-amber-500/10' },
+                            { label: '40 and Above', value: above40Schools, textStyle: 'text-emerald-700', icon: Check, bgTint: 'bg-emerald-500/10' },
+                            { label: 'Avg Students', value: averageStudents, textStyle: 'text-purple-700', icon: Users, bgTint: 'bg-purple-500/10' },
                         ].map(stat => (
-                            <div key={stat.label} className={`rounded-2xl border ${stat.bg} px-5 py-4`}>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{stat.label}</p>
-                                <p className={`mt-1 text-3xl font-extrabold ${stat.color}`}>{stat.value}</p>
+                            <div key={stat.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{stat.label}</p>
+                                        <p className="mt-2 text-3xl font-black text-slate-900">{stat.value}</p>
+                                    </div>
+                                    <div className={`rounded-xl ${stat.bgTint} p-3 flex-shrink-0`}>
+                                        <stat.icon className={`h-6 w-6 ${stat.textStyle}`} />
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -566,7 +570,7 @@ export default function SchoolsPage() {
                             <h4 className="text-sm font-bold text-gray-800">Schools by Enrollment Size</h4>
                             <span className="text-xs font-medium text-gray-500">Sorted by student count, highest first</span>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto scrollbar-hover">
                             <table className="min-w-full divide-y divide-gray-100 text-sm">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -670,7 +674,7 @@ export default function SchoolsPage() {
                         ⚠ School performance rankings will populate here once examination results have been processed and published. Go to <strong>Results Management → Process Results</strong> to generate rankings.
                     </div>
                     <div className="overflow-hidden rounded-xl border">
-                        <div className="overflow-x-auto w-full">
+                        <div className="overflow-x-auto w-full scrollbar-hover">
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -695,7 +699,7 @@ export default function SchoolsPage() {
             {/* ─── Create / Edit Modal ─────────────────────────────────────────── */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-hover">
                         <div className="flex items-center justify-between mb-5">
                             <h2 className="text-xl font-bold text-gray-900">{editId ? 'Edit School' : 'Register School'}</h2>
                             <button onClick={closeModal} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100">

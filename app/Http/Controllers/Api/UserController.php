@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Identity\Models\User;
 use App\Domains\Identity\Services\UserManagementService;
 use App\Http\Controllers\Controller;
+use App\Services\AccessScopeService;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
@@ -12,11 +13,13 @@ class UserController extends Controller
 {
     public function __construct(
         private UserManagementService $users,
+        private AccessScopeService $scopes,
     ) {}
 
     public function index(Request $request)
     {
         $actor = $request->user();
+        abort_unless($actor->can('view_users'), 403);
         $perPage = $request->input('per_page', 25);
 
         return response()->json(
@@ -27,6 +30,7 @@ class UserController extends Controller
     public function store(Request $request, AuditLogger $auditLogger)
     {
         $actor = $request->user();
+        abort_unless($actor->can('create_user'), 403);
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:100',
@@ -62,7 +66,11 @@ class UserController extends Controller
 
     public function show(string $id)
     {
+        $actor = request()->user();
+        abort_unless($actor->can('view_users'), 403);
+
         $user = User::with(['roles', 'permissions', 'region', 'district', 'school', 'creator'])->findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user) || $actor->id === $user->id, 403);
 
         return response()->json($user);
     }
@@ -70,7 +78,9 @@ class UserController extends Controller
     public function update(Request $request, string $id, AuditLogger $auditLogger)
     {
         $actor = $request->user();
+        abort_unless($actor->can('edit_user'), 403);
         $user = User::findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user) || $actor->id === $user->id, 403);
 
         $validated = $request->validate([
             'first_name' => 'sometimes|required|string|max:100',
@@ -107,7 +117,9 @@ class UserController extends Controller
     public function changeStatus(Request $request, string $id, AuditLogger $auditLogger)
     {
         $actor = $request->user();
+        abort_unless($actor->can('manage_users'), 403);
         $user = User::findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user), 403);
 
         $validated = $request->validate([
             'status' => 'required|in:active,inactive,locked,suspended,archived,pending',
@@ -135,7 +147,9 @@ class UserController extends Controller
     public function resetPassword(Request $request, string $id, AuditLogger $auditLogger)
     {
         $actor = $request->user();
+        abort_unless($actor->can('reset_password'), 403);
         $user = User::findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user) || $actor->id === $user->id, 403);
 
         $validated = $request->validate([
             'password' => 'required|string|min:8|confirmed',
@@ -156,7 +170,9 @@ class UserController extends Controller
     public function forcePasswordChange(string $id, AuditLogger $auditLogger)
     {
         $actor = auth()->user();
+        abort_unless($actor?->can('reset_password'), 403);
         $user = User::findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user), 403);
 
         $this->users->forcePasswordChange($user);
 
@@ -172,7 +188,9 @@ class UserController extends Controller
     public function destroy(string $id, AuditLogger $auditLogger)
     {
         $actor = auth()->user();
+        abort_unless($actor->can('delete_user'), 403);
         $user = User::findOrFail($id);
+        abort_unless($this->scopes->canManageUser($actor, $user), 403);
 
         if ($user->hasRole('Super Administrator')) {
             return response()->json(['message' => 'Super Administrator accounts cannot be deleted.'], 403);
@@ -193,6 +211,7 @@ class UserController extends Controller
 
     public function formData(Request $request)
     {
+        abort_unless($request->user()->can('create_user') || $request->user()->can('edit_user') || $request->user()->can('manage_users'), 403);
         return response()->json($this->users->formData($request->user()));
     }
 }

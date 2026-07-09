@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import SubjectRegistrationPage from '@/pages/SubjectRegistrationPage';
 import {
     Users2, UserPlus, FileSpreadsheet, BadgeCheck, ArrowUpCircle,
     ArrowRightLeft, Radar, ChartColumn, Search, RefreshCw, Download,
     Upload, Plus, Pencil, Trash2, X, Check, ChevronDown, Eye,
     AlertTriangle, CheckCircle2, FileDown, Filter, BarChart3,
-    Clock, GraduationCap, MapPin, Phone, User2, Calendar,
+    Clock, GraduationCap, MapPin, Phone, User2, Calendar, BookOpen,
     Loader2, AlertCircle, Info, TrendingUp, Building2
 } from 'lucide-react';
 
@@ -59,7 +60,7 @@ interface ImportRow {
     _row?: number; _errors?: string[]; _valid?: boolean;
 }
 
-type TabId = 'all' | 'register' | 'import' | 'candidate_reg' | 'promotions' | 'transfers' | 'duplicates' | 'performance';
+type TabId = 'all' | 'register' | 'import' | 'subjects' | 'candidate_reg' | 'promotions' | 'transfers' | 'duplicates' | 'performance';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -68,6 +69,7 @@ const TABS: { id: TabId; label: string; path: string; icon: React.ComponentType<
     { id: 'all',           label: 'All Students',          path: '/students',                    icon: Users2          },
     { id: 'register',      label: 'Register Student',       path: '/students/register',           icon: UserPlus        },
     { id: 'import',        label: 'Bulk Import',            path: '/students/import',             icon: FileSpreadsheet },
+    { id: 'subjects',      label: 'Subject Registration',   path: '/students/subjects',           icon: BookOpen        },
     { id: 'candidate_reg', label: 'Candidate Registration', path: '/candidates/register',         icon: BadgeCheck      },
     { id: 'promotions',    label: 'Promotions',             path: '/students/promotions',         icon: ArrowUpCircle   },
     { id: 'transfers',     label: 'Transfers',              path: '/students/transfers',          icon: ArrowRightLeft  },
@@ -196,24 +198,26 @@ const LocationSelector = ({
 // ─────────────────────────────────────────────────────────────────────────────
 const StatsCards = ({ stats }: { stats: StudentStats }) => {
     const cards = [
-        { label: 'Total Students', value: (stats.total  ?? 0).toLocaleString(), color: 'from-[#0F4C81] to-[#1a6ab1]', icon: Users2 },
-        { label: 'Male',           value: (stats.male   ?? 0).toLocaleString(), color: 'from-blue-500 to-blue-600',    icon: User2  },
-        { label: 'Female',         value: (stats.female ?? 0).toLocaleString(), color: 'from-purple-500 to-purple-600',icon: User2  },
-        { label: 'Active',         value: (stats.active ?? 0).toLocaleString(), color: 'from-emerald-500 to-emerald-600', icon: CheckCircle2 },
-        { label: 'Transferred',    value: (stats.transferred ?? 0).toLocaleString(), color: 'from-amber-500 to-amber-600', icon: ArrowRightLeft },
+        { label: 'Total Students', value: (stats.total  ?? 0).toLocaleString(), textStyle: 'text-[#0F4C81]', bgTint: 'bg-[#0F4C81]/10', icon: Users2 },
+        { label: 'Male',           value: (stats.male   ?? 0).toLocaleString(), textStyle: 'text-blue-700',    bgTint: 'bg-blue-500/10',    icon: User2  },
+        { label: 'Female',         value: (stats.female ?? 0).toLocaleString(), textStyle: 'text-purple-700',  bgTint: 'bg-purple-500/10',  icon: User2  },
+        { label: 'Active',         value: (stats.active ?? 0).toLocaleString(), textStyle: 'text-emerald-700', bgTint: 'bg-emerald-500/10', icon: CheckCircle2 },
+        { label: 'Transferred',    value: (stats.transferred ?? 0).toLocaleString(), textStyle: 'text-amber-700', bgTint: 'bg-amber-500/10', icon: ArrowRightLeft },
     ];
     return (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {cards.map(c => {
                 const Icon = c.icon;
                 return (
-                    <div key={c.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${c.color} p-4 text-white shadow-md`}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{c.label}</p>
-                                <p className="mt-1 text-2xl font-black">{c.value}</p>
+                    <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+                        <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">{c.label}</p>
+                                <p className="mt-1 text-2xl font-black text-slate-900">{c.value}</p>
                             </div>
-                            <Icon className="h-8 w-8 opacity-20" />
+                            <div className={`rounded-xl ${c.bgTint} p-2 flex-shrink-0`}>
+                                <Icon className={`h-6 w-6 ${c.textStyle}`} />
+                            </div>
                         </div>
                     </div>
                 );
@@ -237,6 +241,14 @@ export default function StudentsPage() {
     const [classLevels,  setClassLevels]  = useState<ClassLevel[]>([]);
     const [examinations, setExaminations] = useState<Examination[]>([]);
     const [metaLoading,  setMetaLoading]  = useState(true);
+    const [globalStats, setGlobalStats] = useState<StudentStats>({
+        total: 0,
+        male: 0,
+        female: 0,
+        active: 0,
+        transferred: 0,
+        completed: 0,
+    });
 
     // ── Active tab ─────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<TabId>('all');
@@ -251,6 +263,29 @@ export default function StudentsPage() {
         setToast({ type, msg });
         setTimeout(() => setToast(null), 5000);
     };
+
+    const fetchGlobalStats = useCallback(() => {
+        fetch('/api/v1/students/stats', {
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        })
+            .then((r) => r.json())
+            .then((statsData) => {
+                if (typeof statsData?.total === 'number') {
+                    setGlobalStats({
+                        total: statsData.total ?? 0,
+                        male: statsData.male ?? 0,
+                        female: statsData.female ?? 0,
+                        active: statsData.active ?? 0,
+                        transferred: statsData.transferred ?? 0,
+                        completed: statsData.completed ?? 0,
+                        perSchool: statsData.perSchool ?? statsData.per_school ?? [],
+                    });
+                }
+            })
+            .catch(() => {
+                // Keep default stats when stats request fails.
+            });
+    }, [token]);
 
     // ── Sync tab with URL ──────────────────────────────────────────────────
     useEffect(() => {
@@ -277,7 +312,9 @@ export default function StudentsPage() {
             setClassLevels( Array.isArray(cls)   ? cls   : cls.data   ?? []);
             setExaminations(Array.isArray(exams) ? exams : exams.data ?? []);
         }).finally(() => setMetaLoading(false));
-    }, []);
+
+        fetchGlobalStats();
+    }, [fetchGlobalStats]);
 
     const goTo = (tab: TabId, path: string) => {
         setActiveTab(tab);
@@ -308,30 +345,10 @@ export default function StudentsPage() {
                 )}
             </div>
 
-            {/* ── Tabs ── */}
-            <div className="relative">
-                <div className="flex overflow-x-auto border-b border-slate-200 pb-px">
-                    {TABS.map(tab => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => goTo(tab.id, tab.path)}
-                                className={[
-                                    'group relative flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors whitespace-nowrap border-b-2',
-                                    isActive
-                                        ? 'border-[#0F4C81] text-[#0F4C81]'
-                                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300',
-                                ].join(' ')}
-                            >
-                                <Icon className={`h-4 w-4 ${isActive ? 'text-[#0F4C81]' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
+            {/* ── Stats Cards ── */}
+            <StatsCards stats={globalStats} />
+
+
 
             {/* ── Toast ── */}
             {toast && (
@@ -357,6 +374,7 @@ export default function StudentsPage() {
                         {activeTab === 'all'           && <TabAllStudents     headers={headers} regions={regions} districts={districts} schools={schools} academicYears={academicYears} classLevels={classLevels} onToast={showToast} token={token} />}
                         {activeTab === 'register'      && <TabRegisterStudent  headers={headers} regions={regions} districts={districts} schools={schools} academicYears={academicYears} classLevels={classLevels} onToast={showToast} onSuccess={() => goTo('all', '/students')} />}
                         {activeTab === 'import'        && <TabBulkImport       headers={headers} regions={regions} districts={districts} schools={schools} academicYears={academicYears} classLevels={classLevels} onToast={showToast} token={token} />}
+                        {activeTab === 'subjects'      && <SubjectRegistrationPage />}
                         {activeTab === 'candidate_reg' && <TabCandidateReg     headers={headers} schools={schools} examinations={examinations} classLevels={classLevels} regions={regions} districts={districts} onToast={showToast} />}
                         {activeTab === 'promotions'    && <TabPromotions       headers={headers} regions={regions} districts={districts} schools={schools} academicYears={academicYears} classLevels={classLevels} onToast={showToast} />}
                         {activeTab === 'transfers'     && <TabTransfers        headers={headers} regions={regions} districts={districts} schools={schools} onToast={showToast} />}
@@ -374,7 +392,6 @@ export default function StudentsPage() {
 // ═════════════════════════════════════════════════════════════════════════════
 function TabAllStudents({ headers, regions, districts, schools, academicYears, classLevels, onToast, token }: any) {
     const [students,  setStudents]  = useState<StudentRecord[]>([]);
-    const [stats,     setStats]     = useState<StudentStats>({ total: 0, male: 0, female: 0, active: 0, transferred: 0, completed: 0 });
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState('');
     const [filterRegion,   setFilterRegion]   = useState('');
@@ -406,26 +423,14 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
 
     const fetchStudents = useCallback(() => {
         setLoading(true);
-        Promise.all([
-            fetch(`/api/v1/students?${buildParams()}`, { headers }).then(r => r.json()),
-            fetch('/api/v1/students/stats',             { headers }).then(r => r.json()).catch(() => ({})),
-        ]).then(([data, statsData]) => {
-            setStudents(data.data ?? []);
-            setMeta(data.meta ?? null);
-            // Safely extract numeric fields — guard against API error JSON shape
-            if (typeof statsData?.total === 'number') {
-                setStats({
-                    total:       statsData.total       ?? 0,
-                    male:        statsData.male        ?? 0,
-                    female:      statsData.female      ?? 0,
-                    active:      statsData.active      ?? 0,
-                    transferred: statsData.transferred ?? 0,
-                    completed:   statsData.completed   ?? 0,
-                    perSchool:   statsData.perSchool   ?? statsData.per_school ?? [],
-                });
-            }
-        }).catch(() => onToast('error', 'Failed to load student data.'))
-          .finally(() => setLoading(false));
+        fetch(`/api/v1/students?${buildParams()}`, { headers })
+            .then(r => r.json())
+            .then((data) => {
+                setStudents(data.data ?? []);
+                setMeta(data.meta ?? null);
+            })
+            .catch(() => onToast('error', 'Failed to load student data.'))
+            .finally(() => setLoading(false));
     }, [buildParams]);
 
     useEffect(() => { fetchStudents(); }, [fetchStudents]);
@@ -496,9 +501,6 @@ function TabAllStudents({ headers, regions, districts, schools, academicYears, c
 
     return (
         <div className="space-y-5">
-            {/* Stats */}
-            <StatsCards stats={stats} />
-
             {/* Filters */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
@@ -910,11 +912,11 @@ function TabRegisterStudent({ headers, regions, districts, schools, academicYear
     return (
         <div className="mx-auto max-w-2xl">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 bg-gradient-to-r from-[#0F4C81] to-[#1a6ab1] px-6 py-4">
-                    <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+                <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
+                    <h2 className="flex items-center gap-2 text-lg font-black text-[#0F4C81]">
                         <UserPlus className="h-5 w-5" /> Register New Student
                     </h2>
-                    <p className="mt-0.5 text-sm text-blue-100">Fill all required fields (*) to register a new student.</p>
+                    <p className="mt-1 text-xs text-slate-500">Fill all required fields (*) to register a new student.</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-5 p-6">
                     {error && <Alert type="error" message={error} />}
@@ -1264,7 +1266,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                         <div className="border-b border-slate-200 bg-white px-4 py-3">
                             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Template Structure</p>
                         </div>
-                        <div className="overflow-x-auto p-4">
+                        <div className="overflow-x-auto p-4 scrollbar-hover">
                             <table className="min-w-full text-xs">
                                 <thead>
                                     <tr>
@@ -1370,7 +1372,7 @@ function TabBulkImport({ headers, regions, districts, schools, academicYears, cl
                             </div>
                         </div>
                     )}
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto scrollbar-hover">
                         <table className="min-w-full divide-y divide-slate-100 text-sm">
                             <thead className="bg-slate-50">
                                 <tr>
@@ -1424,7 +1426,8 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
     const [selDistrict, setSelDistrict] = useState('');
     const [selSchool,   setSelSchool]   = useState('');
     const [selClass,    setSelClass]    = useState('');
-    const [students,    setStudents]    = useState<StudentRecord[]>([]);
+    const [students,    setStudents]    = useState<Array<StudentRecord & { subject_count?: number; subject_registration_status?: string; subject_registration_message?: string; eligible?: boolean }>>([]);
+    const [candidateMeta, setCandidateMeta] = useState<{ scope_count?: number; eligible_count?: number; eligible_before_exclusion?: number; registered_count?: number; excluded_as_registered?: number } | null>(null);
     const [selected,    setSelected]    = useState<string[]>([]);
     const [loading,     setLoading]     = useState(false);
     const [registering, setRegistering] = useState(false);
@@ -1451,27 +1454,43 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
             const p = new URLSearchParams({ school_id: selSchool, class_level_id: selClass });
             const res  = await fetch(`/api/v1/examinations/${selExam}/eligible-students?${p}`, { headers });
             const data = await res.json();
-            setStudents(Array.isArray(data) ? data : []);
-            if ((Array.isArray(data) ? data.length : 0) === 0) {
-                onToast('info', 'No eligible students found for this exam, school and class.');
+            const list = Array.isArray(data) ? data : (data.students ?? []);
+            const meta = Array.isArray(data) ? null : (data.meta ?? null);
+            setStudents(list);
+            setCandidateMeta(meta);
+            const eligibleCount = list.filter((student: any) => student.eligible).length;
+            if (list.length === 0) {
+                if ((meta?.scope_count ?? 0) === 0) {
+                    onToast('info', 'No students were found in this school and class scope.');
+                } else if ((meta?.eligible_before_exclusion ?? 0) > 0 && (meta?.eligible_count ?? 0) === 0) {
+                    onToast('info', 'All eligible students in this scope are already registered for this exam.');
+                } else {
+                    onToast('info', 'No students have complete subject registration in this scope yet.');
+                }
+            } else if (eligibleCount === 0) {
+                onToast('info', 'No students have complete subject registration in this scope yet.');
             }
         } catch { onToast('error', 'Failed to load students.'); }
         finally { setLoading(false); }
     };
 
-    const toggleAll = () => setSelected(selected.length === students.length ? [] : students.map(s => s.id));
+    const toggleAll = () => {
+        const eligibleIds = students.filter((student) => student.eligible !== false).map((student) => student.id);
+        setSelected(selected.length === eligibleIds.length ? [] : eligibleIds);
+    };
 
     const handleRegister = async () => {
-        if (!selExam || selected.length === 0) { onToast('error', 'Select an examination and at least one student.'); return; }
+        const eligibleSelected = students.filter(s => selected.includes(s.id) && s.eligible !== false).map(s => s.id);
+        if (!selExam || eligibleSelected.length === 0) { onToast('error', 'Select an examination and at least one eligible student.'); return; }
         setRegistering(true);
         try {
             const res = await fetch(`/api/v1/examinations/${selExam}/registrations`, {
                 method: 'POST', headers,
-                body: JSON.stringify({ student_ids: selected, class_level_id: selClass }),
+                body: JSON.stringify({ student_ids: eligibleSelected, class_level_id: selClass }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            onToast('success', data.message ?? `${selected.length} candidates registered successfully.`);
+            onToast('success', data.message ?? `${eligibleSelected.length} candidates registered successfully.`);
             setSelected([]);
             fetchEligible();
         } catch (e: any) { onToast('error', e.message); }
@@ -1529,11 +1548,11 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                         <div className="text-sm font-semibold text-slate-700">
-                            {students.length} eligible students found — {selected.length} selected
+                            {students.length} students found — {selected.filter(id => students.find(s => s.id === id)?.eligible !== false).length} eligible selected
                         </div>
                         <div className="flex gap-2">
                             <button onClick={toggleAll} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                {selected.length === students.length ? 'Deselect All' : 'Select All'}
+                                {selected.length === students.filter(s => s.eligible !== false).length ? 'Deselect All' : 'Select Eligible'}
                             </button>
                             <button onClick={handleRegister} disabled={selected.length === 0 || registering}
                                 className="flex items-center gap-1.5 rounded-xl bg-[#0F4C81] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#0c3c66] disabled:opacity-50">
@@ -1542,7 +1561,7 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
                             </button>
                         </div>
                     </div>
-                    <div className="max-h-[400px] overflow-y-auto">
+                    <div className="student-list-scroll max-h-[620px] overflow-y-auto">
                         <table className="min-w-full divide-y divide-slate-100 text-sm">
                             <thead className="sticky top-0 bg-slate-50">
                                 <tr>
@@ -1551,21 +1570,44 @@ function TabCandidateReg({ headers, schools, examinations, classLevels, regions,
                                     <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">Name</th>
                                     <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">Gender</th>
                                     <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">School</th>
+                                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">Subjects</th>
+                                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {students.map(s => (
-                                    <tr key={s.id} onClick={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
-                                        className={`cursor-pointer transition hover:bg-slate-50 ${selected.includes(s.id) ? 'bg-blue-50' : ''}`}>
-                                        <td className="px-4 py-2.5"><input type="checkbox" checked={selected.includes(s.id)} readOnly className="rounded" /></td>
+                                    <tr key={s.id} onClick={() => s.eligible === false ? undefined : setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                                        className={`transition ${s.eligible === false ? 'cursor-not-allowed bg-rose-50/60 opacity-80' : 'cursor-pointer hover:bg-slate-50'} ${selected.includes(s.id) ? 'bg-blue-50' : ''}`}>
+                                        <td className="px-4 py-2.5">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.includes(s.id)}
+                                                readOnly
+                                                disabled={s.eligible === false}
+                                                className="rounded disabled:opacity-50"
+                                            />
+                                        </td>
                                         <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{s.registration_number}</td>
                                         <td className="px-4 py-2.5 font-semibold text-slate-900">{s.first_name} {s.last_name}</td>
                                         <td className="px-4 py-2.5"><span className={`font-bold ${s.gender === 'M' ? 'text-blue-600' : 'text-pink-600'}`}>{s.gender}</span></td>
                                         <td className="px-4 py-2.5 text-slate-500">{s.school?.name}</td>
+                                        <td className="px-4 py-2.5">
+                                            <div className="text-sm font-bold text-slate-900">{s.subject_count ?? 0}</div>
+                                        </td>
+                                        <td className="px-4 py-2.5">
+                                            <div className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${s.eligible === false ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {s.eligible === false ? 'Incomplete Subject Registration' : 'Eligible'}
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    <div className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+                        {candidateMeta?.eligible_before_exclusion && candidateMeta.eligible_count === 0
+                            ? 'All eligible students are already registered for this exam.'
+                            : 'Students with fewer than 8 subjects are shown for visibility but cannot be registered until subject registration is completed.'}
                     </div>
                 </div>
             )}
@@ -2026,14 +2068,14 @@ function TabPerformance({ headers }: any) {
 
             {selected && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="border-b border-slate-100 bg-gradient-to-r from-[#0F4C81] to-[#1a6ab1] px-5 py-4">
+                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-sm font-bold text-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F4C81]/10 text-sm font-black text-[#0F4C81] border border-[#0F4C81]/10">
                                 {selected.first_name[0]}{selected.last_name[0]}
                             </div>
                             <div>
-                                <p className="font-bold text-white">{selected.first_name} {selected.middle_name ? selected.middle_name + ' ' : ''}{selected.last_name}</p>
-                                <p className="text-xs text-blue-200">{selected.registration_display || selected.registration_number} | {selected.school?.name}</p>
+                                <p className="font-black text-slate-800 text-sm">{selected.first_name} {selected.middle_name ? selected.middle_name + ' ' : ''}{selected.last_name}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">{selected.registration_display || selected.registration_number} | <span className="font-semibold text-[#0F4C81]">{selected.school?.name}</span></p>
                             </div>
                         </div>
                     </div>
@@ -2046,7 +2088,7 @@ function TabPerformance({ headers }: any) {
                             <p className="text-xs">This student has not been registered for any examination yet.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto scrollbar-hover">
                             <table className="min-w-full divide-y divide-slate-100 text-sm">
                                 <thead className="bg-slate-50">
                                     <tr>

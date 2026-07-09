@@ -122,7 +122,7 @@ export function SearchableSelect({
                             />
                         </div>
                     </div>
-                    <div className="max-h-64 overflow-auto p-1">
+                    <div className="max-h-64 overflow-auto p-1 scrollbar-hover">
                         {filteredOptions.length === 0 ? (
                             <div className="px-3 py-3 text-sm text-slate-400">{emptyText}</div>
                         ) : (

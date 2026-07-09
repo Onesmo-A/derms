@@ -19,8 +19,8 @@ class BulkSaveMarksRequest extends FormRequest
             'marks' => ['required', 'array', 'min:1'],
             'marks.*.examination_registration_id' => ['required', 'uuid', 'exists:examination_registrations,id'],
             'marks.*.registration_status' => ['required', 'in:' . implode(',', ExaminationRegistrationStatus::values())],
-            'marks.*.paper_one_score' => ['nullable', 'numeric', 'min:0'],
-            'marks.*.paper_two_score' => ['nullable', 'numeric', 'min:0'],
+            'marks.*.paper_one_score' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'marks.*.paper_two_score' => ['nullable', 'numeric', 'min:0', 'max:50'],
         ];
     }
 }

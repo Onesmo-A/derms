@@ -301,6 +301,10 @@ class ExternalResultsService
                             'subject_id' => $subId,
                             'max_marks' => 100.00,
                             'pass_marks' => 30.00,
+                            'paper_one_weight' => 100.00,
+                            'paper_two_weight' => 0.00,
+                            'paper_one_max_marks' => 100.00,
+                            'paper_two_max_marks' => 0.00,
                             'created_at' => now(),
                             'updated_at' => now()
                         ]);

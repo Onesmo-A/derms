@@ -60,18 +60,7 @@ class NotificationController extends Controller
     public function logs(Request $request)
     {
         $user = $request->user();
-        abort_unless(
-            $user->hasAnyRole([
-                'Super Administrator',
-                'Regional Education Officer (REO)',
-                'District Education Officer (DEO)',
-                'District Academic Officer',
-                'Head of School',
-                'Academic Master/Mistress',
-            ]),
-            403,
-            'Unauthorized to view SMS logs.'
-        );
+        abort_unless($user->can('view_sms_logs'), 403, 'Unauthorized to view SMS logs.');
 
         $query = SmsLog::with(['student', 'registration.examination']);
 

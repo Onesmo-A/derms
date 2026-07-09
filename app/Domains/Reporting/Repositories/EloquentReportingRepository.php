@@ -9,6 +9,7 @@ use App\Domains\Results\Models\Mark;
 use App\Domains\Results\Models\SchoolExamSummary;
 use App\Domains\Results\Models\StudentExamSummary;
 use App\Domains\Results\Models\SubjectExamSummary;
+use App\Enums\ExaminationRegistrationStatus;
 use App\Domains\School\Models\District;
 use App\Domains\School\Models\Region;
 use App\Domains\School\Models\School;
@@ -279,30 +280,37 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
         $this->assertRegionAccess($user, $regionId);
 
         $studentSummaries = $this->filterStudentSummaries($this->studentSummaries($exam), $classLevelId)
-            ->filter(fn ($row) => (string) $row['region_id'] === (string) $regionId)
+            ->where('region_id', $regionId)
             ->values();
-        $districtRows = $this->districtRowsFromStudents($studentSummaries, $exam);
+        $districts = $this->districtRowsFromStudents($studentSummaries, $exam);
+        $subjectPerformance = $this->subjectPerformance($exam, $regionId, null, null, $classLevelId);
+        $students = $this->studentRowsFromSummaries($studentSummaries);
 
         return [
             'exam' => $this->examMeta($exam),
             'region' => [
                 'id' => $region->id,
                 'name' => $region->name,
-                'code' => $region->code,
             ],
             'top_cards' => $this->regionTopCards($region, $studentSummaries),
             'performance_summary' => $this->regionPerformanceSummary($region, $studentSummaries),
-            'districts' => $districtRows->values(),
-            'best_districts' => $districtRows->take(10)->values(),
-            'lowest_districts' => $districtRows->sortBy('gpa')->take(10)->values(),
-            'school_statistics' => $this->regionSchoolStats($region),
-            'candidate_statistics' => $this->candidateStats($studentSummaries),
-            'gender_performance' => $this->genderPerformance($studentSummaries),
+            'districts' => $districts->values(),
             'student_analysis' => $this->nationalStudentAnalysisRows($studentSummaries),
-            'grade_distribution' => $this->gradeDistribution($studentSummaries),
-            'division_distribution' => $this->divisionDistribution($studentSummaries),
-            'subject_performance' => $this->subjectPerformance($exam, $regionId, null, null, $classLevelId),
+            'subject_performance' => $subjectPerformance,
             'examination_comparison' => $this->historicalTrends(),
+            'schools' => School::with('district.region')
+                ->whereHas('district', fn ($query) => $query->where('region_id', $regionId))
+                ->get()
+                ->map(fn (School $school) => [
+                'id' => $school->id,
+                'name' => $school->name,
+                'district_name' => $school->district?->name,
+                'region_name' => $school->district?->region?->name,
+                'student_count' => (int) ($school->student_count_cache ?? $school->students()->count()),
+                'enrolment_category' => $school->enrolment_category,
+                'enrolment_category_label' => $school->enrolment_category_label,
+            ])->values(),
+            'students' => $students->values(),
         ];
     }
 
@@ -310,6 +318,11 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
     {
         $exam = $this->resolveExam($examId);
         $studentSummaries = $this->filterStudentSummaries($this->studentSummaries($exam), $classLevelId);
+
+        if ($regionId) {
+            $studentSummaries = $studentSummaries->where('region_id', $regionId)->values();
+        }
+
         $districts = $this->districtRows($user, $studentSummaries, $exam, $regionId);
 
         return [
@@ -325,29 +338,26 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
         $this->assertDistrictAccess($user, $districtId);
 
         $studentSummaries = $this->filterStudentSummaries($this->studentSummaries($exam), $classLevelId)
-            ->filter(fn ($row) => (string) $row['district_id'] === (string) $districtId)
+            ->where('district_id', $districtId)
             ->values();
+
         $schools = $this->schoolRowsFromStudents($studentSummaries, $exam);
+        $subjectPerformance = $this->subjectPerformance($exam, null, $districtId, null, $classLevelId);
 
         return [
             'exam' => $this->examMeta($exam),
             'district' => [
                 'id' => $district->id,
                 'name' => $district->name,
-                'code' => $district->code,
                 'region' => $district->region?->name,
             ],
             'top_cards' => $this->districtTopCards($district, $studentSummaries),
             'performance_summary' => $this->districtPerformanceSummary($district, $studentSummaries),
             'schools' => $schools->values(),
-            'best_schools' => $schools->take(10)->values(),
-            'lowest_schools' => $schools->sortBy('gpa')->take(10)->values(),
-            'school_statistics' => $this->districtSchoolStats($district),
-            'candidate_statistics' => $this->candidateStats($studentSummaries),
             'gender_performance' => $this->genderPerformance($studentSummaries),
             'grade_distribution' => $this->gradeDistribution($studentSummaries),
             'division_distribution' => $this->divisionDistribution($studentSummaries),
-            'subject_performance' => $this->subjectPerformance($exam, null, $districtId, null, $classLevelId),
+            'subject_performance' => $subjectPerformance,
             'examination_comparison' => $this->historicalTrends(),
         ];
     }
@@ -356,6 +366,11 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
     {
         $exam = $this->resolveExam($examId);
         $studentSummaries = $this->filterStudentSummaries($this->studentSummaries($exam), $classLevelId);
+
+        if ($districtId) {
+            $studentSummaries = $studentSummaries->where('district_id', $districtId)->values();
+        }
+
         $schools = $this->schoolRows($user, $studentSummaries, $exam, $districtId);
 
         return [
@@ -371,14 +386,14 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
         $this->assertSchoolAccess($user, $schoolId);
 
         $studentSummaries = $this->filterStudentSummaries($this->studentSummaries($exam), $classLevelId)
-            ->filter(fn ($row) => (string) $row['school_id'] === (string) $schoolId)
+            ->where('school_id', $schoolId)
             ->values();
-        $students = $this->studentRowsFromSummaries($studentSummaries);
-        $subjectPerformance = $this->subjectPerformance($exam, null, null, $schoolId, $classLevelId);
+
         $examSubjectsQuery = $exam->examinationSubjects()->with('subject');
         if ($classLevelId) {
             $examSubjectsQuery->where('class_level_id', $classLevelId);
         }
+
         $examSubjects = $examSubjectsQuery
             ->get()
             ->map(fn ($item) => [
@@ -396,11 +411,12 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
             ->join('subjects', 'examination_subjects.subject_id', '=', 'subjects.id')
             ->where('examination_registrations.examination_id', $exam->id)
             ->where('students.school_id', $schoolId)
+            ->when($classLevelId, fn ($query) => $query->where('examination_registrations.class_level_id', $classLevelId))
             ->selectRaw('examination_registrations.id as registration_id, COALESCE(subjects.short_name, subjects.code) as subject_code, marks.final_score')
             ->get()
             ->groupBy('registration_id');
 
-        $students = $students->map(function (array $student) use ($candidateMarks, $examSubjects) {
+        $students = $this->studentRowsFromSummaries($studentSummaries)->map(function (array $student) use ($candidateMarks, $examSubjects) {
             $marks = $candidateMarks->get($student['registration_id'] ?? null, collect());
             $subjectScores = [];
 
@@ -431,10 +447,11 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
             'top_cards' => $this->schoolTopCards($school, $studentSummaries),
             'performance_summary' => $this->schoolPerformanceSummary($school, $studentSummaries),
             'students' => $students->values(),
-            'subject_performance' => $subjectPerformance,
+            'subject_performance' => $this->subjectPerformance($exam, null, null, $schoolId, $classLevelId),
             'gender_performance' => $this->genderPerformance($studentSummaries),
             'grade_distribution' => $this->gradeDistribution($studentSummaries),
             'division_distribution' => $this->divisionDistribution($studentSummaries),
+            'examination_comparison' => $this->historicalTrends(),
         ];
     }
 
@@ -586,7 +603,8 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
                 'districts.id as district_id',
                 'districts.name as district_name',
                 'regions.id as region_id',
-                'regions.name as region_name'
+                'regions.name as region_name',
+                'examination_registrations.status as reg_status'
             )
             ->orderBy('student_exam_summaries.gpa')
             ->get();
@@ -813,7 +831,7 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
 
     protected function studentRowsFromSummaries(Collection $studentSummaries): Collection
     {
-        return $studentSummaries->map(function ($row) {
+        $rows = $studentSummaries->map(function ($row) {
             $passedSubjects = (int) ($row['passed_subjects_count'] ?? 0);
             $failedSubjects = (int) ($row['failed_subjects_count'] ?? 0);
 
@@ -828,18 +846,69 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
                 'school_name' => $row['school_name'],
                 'district_name' => $row['district_name'],
                 'region_name' => $row['region_name'],
+                'school_id' => $row['school_id'] ?? null,
+                'district_id' => $row['district_id'] ?? null,
+                'region_id' => $row['region_id'] ?? null,
                 'class_level_id' => $row['class_level_id'] ?? null,
                 'average' => round((float) $row['average_marks'], 2),
                 'gpa' => round((float) $row['gpa'], 2),
+                'reg_status' => $row['reg_status'] ?? null,
                 'region_position' => $row['region_position'] ?? null,
+                'region_position_total' => null,
                 'district_position' => $row['district_position'] ?? null,
+                'district_position_total' => null,
                 'school_position' => $row['school_position'] ?? null,
+                'school_position_total' => null,
                 'division' => $row['division'],
                 'division_points' => $row['division_points'],
             ];
         })->sortBy('gpa')->values();
-    }
 
+        $activeRows = $rows
+            ->filter(fn (array $row) => (string) ($row['reg_status'] ?? '') !== ExaminationRegistrationStatus::Absent->value)
+            ->values();
+
+        $rankByScope = function (Collection $scopeRows, string $groupKey): array {
+            $positions = [];
+            $totals = [];
+
+            foreach ($scopeRows->groupBy($groupKey) as $groupRows) {
+                $rankedRows = $groupRows
+                    ->sortBy([
+                        ['gpa', 'asc'],
+                        ['division_points', 'asc'],
+                        ['average', 'desc'],
+                    ])
+                    ->values();
+
+                $total = $rankedRows->count();
+
+                foreach ($rankedRows as $index => $row) {
+                    $rowKey = (string) ($row['id'] ?? $row['registration_id'] ?? $index);
+                    $positions[$rowKey] = $index + 1;
+                    $totals[$rowKey] = $total;
+                }
+            }
+
+            return [$positions, $totals];
+        };
+
+        [$regionPositions, $regionTotals] = $rankByScope($activeRows, 'region_id');
+        [$districtPositions, $districtTotals] = $rankByScope($activeRows, 'district_id');
+        [$schoolPositions, $schoolTotals] = $rankByScope($activeRows, 'school_id');
+
+        return $rows->map(function (array $row) use ($regionPositions, $regionTotals, $districtPositions, $districtTotals, $schoolPositions, $schoolTotals) {
+            $rowKey = (string) ($row['id'] ?? $row['registration_id'] ?? '');
+            $row['region_position'] = $regionPositions[$rowKey] ?? $row['region_position'];
+            $row['region_position_total'] = $regionTotals[$rowKey] ?? null;
+            $row['district_position'] = $districtPositions[$rowKey] ?? $row['district_position'];
+            $row['district_position_total'] = $districtTotals[$rowKey] ?? null;
+            $row['school_position'] = $schoolPositions[$rowKey] ?? $row['school_position'];
+            $row['school_position_total'] = $schoolTotals[$rowKey] ?? null;
+
+            return $row;
+        })->values();
+    }
     protected function regionPerformanceSummary(Region $region, Collection $studentSummaries): array
     {
         return [
@@ -1514,3 +1583,6 @@ class EloquentReportingRepository implements ReportingRepositoryInterface
         }
     }
 }
+
+
+

@@ -30,6 +30,26 @@ const fmt = (value: any, digits = 2) => {
     return Number.isFinite(num) ? num.toFixed(digits) : '0.00';
 };
 
+const formatRegNo = (value: any) => {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        return 'N/A';
+    }
+
+    return text.split('|')[0].trim();
+};
+
+const formatPosition = (position: any, total: any) => {
+    const pos = Number(position);
+    const denom = Number(total);
+
+    if (!Number.isFinite(pos) || !Number.isFinite(denom) || denom <= 0) {
+        return 'N/A';
+    }
+
+    return `${pos}/${denom}`;
+};
+
 const ENROLMENT_CATEGORY_BELOW_40 = 'below_40';
 const ENROLMENT_CATEGORY_40_AND_ABOVE = '40_and_above';
 
@@ -63,7 +83,7 @@ function DataTable({
                 <h2 className="text-base font-black tracking-tight text-slate-900">{title}</h2>
                 {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
             </div>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm scrollbar-hover">
                 <table className="min-w-full border-collapse text-left text-[13px]">
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.12em] text-slate-500">
                         <tr>
@@ -189,7 +209,7 @@ export default function SchoolDetailReportPage() {
               ...row,
               _cells: [
                   index + 1,
-                  row.registration_display || row.registration_number || 'N/A',
+                  formatRegNo(row.registration_number || row.registration_display),
                   row.name,
                   ...subjectCodes.map((code) => row.subject_scores?.[code] ?? 'N/A'),
                   row.gender || 'N/A',
@@ -197,9 +217,9 @@ export default function SchoolDetailReportPage() {
                   fmt(row.gpa),
                   row.division || 'N/A',
                   row.division_points ?? 'N/A',
-                  row.district_position ?? 'N/A',
-                  row.district_position ?? 'N/A',
-                  row.region_position ?? 'N/A',
+                  formatPosition(row.school_position),
+                  formatPosition(row.district_position),
+                  formatPosition(row.region_position),
               ],
           }))
         : [];
@@ -370,3 +390,6 @@ export default function SchoolDetailReportPage() {
         </div>
     );
 }
+
+
+
